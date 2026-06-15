@@ -5,28 +5,28 @@
 > It contains exactly 150 atomic, actionable tasks structured sequentially.
 
 ## 🛠️ Phase 1: Core Game Engine & Security (TASK-001 - TASK-015)
-- **[ ] TASK-001:** Modify `schema.prisma` to add unique constraints and index on `publishedDate` to optimize daily puzzle queries.
-- **[ ] TASK-002:** Restructure `/api/daily` to return only the first clue (`clueOrder: 1`) to prevent front-end client cheating.
-- **[ ] TASK-003:** Create `/api/clue` POST endpoint to securely return subsequent clues *only* if the player's guess log confirms they have attempted to guess on the current clue.
-- **[ ] TASK-004:** Extract string matching logic and similarity calculations into `services/answerService.ts` for clean separation.
-- **[ ] TASK-005:** Create `services/puzzleService.ts` for handling Daily and Archive database queries.
-- **[ ] TASK-006:** Create `services/scoringService.ts` to calculate points based on clues used, time elapsed, and daily multipliers.
+- **[x] TASK-001:** Modify `schema.prisma` to add unique constraints and index on `publishedDate` to optimize daily puzzle queries.
+- **[x] TASK-002:** Restructure `/api/daily` to return only the first clue (`clueOrder: 1`) to prevent front-end client cheating.
+- **[x] TASK-003:** Create `/api/clue` POST endpoint to securely return subsequent clues *only* if the player's guess log confirms they have attempted to guess on the current clue.
+- **[x] TASK-004:** Extract string matching logic and similarity calculations into `services/answerService.ts` for clean separation.
+- **[x] TASK-005:** Create `services/puzzleService.ts` for handling Daily and Archive database queries.
+- **[x] TASK-006:** Create `services/scoringService.ts` to calculate points based on clues used, time elapsed, and daily multipliers.
 - **[ ] TASK-007:** Implement guess rate limiter middleware (e.g. max 10 guesses per minute per IP) to prevent brute-forcing.
 - **[ ] TASK-008:** Add support for multiple acceptable target answers in the schema (e.g. comma-separated string or related terms array).
 - **[ ] TASK-009:** Encrypt answer strings in the database using a cryptographic hash or secret key to prevent direct DB leak viewing.
 - **[ ] TASK-010:** Add server-side timestamp validation to verify guess submissions happen within the active day.
-- **[ ] TASK-011:** Implement a guest/session identifier mechanism to trace guess history for anonymous players without requiring signup.
+- **[x] TASK-011:** Implement a guest/session identifier mechanism to trace guess history for anonymous players without requiring signup.
 - **[ ] TASK-012:** Write unit tests for Levenshtein distance matching logic in `services/answerService.ts`.
 - **[ ] TASK-013:** Add automated integration tests verifying cheat prevention on progressive clue reveals.
 - **[ ] TASK-014:** Implement validation to prevent duplicate guess submission on the client side.
 - **[ ] TASK-015:** Write database seed script to populate puzzle DB with 30 days of high-quality testing puzzles.
 
 ## 🗃️ Phase 2: Database Schema & Migrations (TASK-016 - TASK-030)
-- **[ ] TASK-016:** Add `Category` model to `schema.prisma` with relation to `Puzzle`.
-- **[ ] TASK-017:** Add `LeaderboardSeason` and `LeaderboardEntry` tables to support seasonal rankings.
-- **[ ] TASK-018:** Update `Guess` table to include `guestId` or `sessionId` for anonymous logging.
+- **[x] TASK-016:** Add `Category` model to `schema.prisma` with relation to `Puzzle`.
+- **[x] TASK-017:** Add `LeaderboardSeason` and `LeaderboardEntry` tables to support seasonal rankings.
+- **[x] TASK-018:** Update `Guess` table to include `guestId` or `sessionId` for anonymous logging.
 - **[ ] TASK-019:** Add `abandoned` status to puzzle play states for metric recording.
-- **[ ] TASK-020:** Set up database migration scripts on Neon PostgreSQL for category/seasonal schema extensions.
+- **[x] TASK-020:** Set up database migration scripts on Neon PostgreSQL for category/seasonal schema extensions.
 - **[ ] TASK-021:** Add index on `userId` and `earnedAt` in `UserAchievement` for faster profile queries.
 - **[ ] TASK-022:** Configure cascade deletions for `User` profiles to automatically clean up all child tables.
 - **[ ] TASK-023:** Add a `difficulty` metadata cache table to store aggregated completion statistics.
@@ -34,9 +34,9 @@
 - **[ ] TASK-025:** Add migration to store daily streak history to prevent streak manipulation.
 - **[ ] TASK-026:** Create `PrismaClient` singleton utility to prevent hot-reload connection leaks.
 - **[ ] TASK-027:** Implement a database backup verification script using Neon CLI.
-- **[ ] TASK-028:** Add a `puzzles_categories` junction table to support multi-category tagging.
+- **[x] TASK-028:** Add a `puzzles_categories` junction table to support multi-category tagging.
 - **[ ] TASK-029:** Create indexing strategy on foreign keys in Prisma schemas to prevent slow joins.
-- **[ ] TASK-030:** Document Prisma Schema and ERD diagram layout inside `/docs/02-database.md`.
+- **[x] TASK-030:** Document Prisma Schema and ERD diagram layout inside `/docs/02-database.md`.
 
 ## 🔌 Phase 3: API Layer Implementation (TASK-031 - TASK-050)
 - **[ ] TASK-031:** Create `/api/archive` GET route for retrieving past puzzles (excluding answers for unsolved ones).
@@ -48,8 +48,8 @@
 - **[ ] TASK-037:** Build `/api/stats/summary` to return aggregated dashboard charts telemetry.
 - **[ ] TASK-038:** Implement `/api/admin/puzzles` POST endpoint to allow manual puzzle creation.
 - **[ ] TASK-039:** Implement `/api/admin/puzzles/[id]` PUT/DELETE endpoint for editing scheduled clues.
-- **[ ] TASK-040:** Implement post-solve DB hook to calculate and update active streaks in the Neon PostgreSQL database.
-- **[ ] TASK-041:** Create client-side synchronization hook in Next.js to reconcile local guest states with authenticated user DB states.
+- **[x] TASK-040:** Implement post-solve DB hook to calculate and update active streaks in the Neon PostgreSQL database.
+- **[x] TASK-041:** Create client-side synchronization hook in Next.js to reconcile local guest states with authenticated user DB states.
 - **[ ] TASK-042:** Build `/api/categories` endpoint returning the active list of gameplay categories.
 - **[ ] TASK-043:** Create `/api/share` POST route to register and generate metadata for external share cards.
 - **[ ] TASK-044:** Add comprehensive JSON response verification middleware on all public endpoints.
@@ -134,7 +134,7 @@
 - **[ ] TASK-115:** Create unit tests verifying seasonal score accumulations run correctly on Neon DB.
 
 ## 🤖 Phase 8: AI Puzzle Generation & Difficulty Engine (TASK-116 - TASK-130)
-- **[ ] TASK-116:** Create the Difficulty Engine calculating difficulty score (1-10) based on average solve rate and clue reveal counts.
+- **[x] TASK-116:** Create the Difficulty Engine calculating difficulty score (1-10) based on average solve rate and clue reveal counts.
 - **[ ] TASK-117:** Integrate Gemini API wrapper to generate daily puzzles (connection theme + 5 progressive clues).
 - **[ ] TASK-118:** Write prompts forcing Gemini to yield strict JSON payloads matching `Puzzle` models.
 - **[ ] TASK-119:** Implement server-side check estimating clue difficulty based on dictionary lookup frequencies.

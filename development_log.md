@@ -97,6 +97,22 @@ This log file tracks all development changes to the Threadly project. It is appe
   - [globals.css](file:///e:/K4NN4N/Threadly/apps/web/app/globals.css): Defined `--color-border-subtle` mapping.
   - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/page.tsx): Replaced arbitrary outline border declarations with `border-border-subtle`.
 
+## Entry #6: Documentation Sync and Backlog Updates
+- **Timestamp**: June 15, 2026, 5:30 PM
+- **Why**: Keep project documentation up to date with the completed Phase 2 and Phase 3 MVP deliverables.
+- **When**: Triggered by user request to update docs.
+- **How**:
+  - Checked off completed tickets (Phase 1, Phase 2, Phase 3, Phase 8) inside `17-task-backlog.md`.
+  - Added new column listings and indexes in `02-database.md`.
+  - Added specifications for new progressive clue reveals and seasonal leaderboard endpoint payloads in `03-api.md`.
+  - Updated phase milestones to mark completion of secure clues, streaks, leaderboards, and the difficulty engine inside `06-roadmap.md`.
+- **Files Changed**:
+  - [17-task-backlog.md](file:///e:/K4NN4N/Threadly/docs/17-task-backlog.md): Checked off completed tickets.
+  - [02-database.md](file:///e:/K4NN4N/Threadly/docs/02-database.md): Documented new database schemas.
+  - [03-api.md](file:///e:/K4NN4N/Threadly/docs/03-api.md): Documented updated/new API contracts.
+  - [06-roadmap.md](file:///e:/K4NN4N/Threadly/docs/06-roadmap.md): Updated milestone achievements.
+
+
 
 
 
