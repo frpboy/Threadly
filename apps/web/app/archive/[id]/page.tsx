@@ -1,13 +1,16 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 
 interface Clue {
   order: number;
   text: string;
 }
 
-export default function Home() {
+export default function PlayArchiveItem() {
+  const { id } = useParams();
   const [puzzleId, setPuzzleId] = useState("");
   const [puzzleTitle, setPuzzleTitle] = useState("Loading Puzzle...");
   const [systemClues, setSystemClues] = useState<Clue[]>([]);
@@ -27,7 +30,6 @@ export default function Home() {
   const [guestId, setGuestId] = useState("");
   const [theme, setTheme] = useState("dark");
 
-  // Load daily puzzle and theme settings
   useEffect(() => {
     // Generate or fetch guest ID
     let gId = localStorage.getItem("threadly_guest_id");
@@ -44,30 +46,32 @@ export default function Home() {
     setTheme(savedTheme);
     document.documentElement.setAttribute("data-theme", savedTheme);
 
-    fetch("/api/daily")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch");
-        return res.json();
-      })
-      .then((data) => {
-        setPuzzleId(data.puzzle_id);
-        setPuzzleTitle(data.title);
-        setSystemClues(data.clues || []);
-        setTotalClues(data.total_clues || 5);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error(err);
-        setPuzzleTitle("Failed to load puzzle. Check .env database credentials.");
-        setLoading(false);
-      });
+    if (id) {
+      fetch(`/api/archive/${id}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch");
+          return res.json();
+        })
+        .then((data) => {
+          setPuzzleId(data.puzzle_id);
+          setPuzzleTitle(data.title);
+          setSystemClues(data.clues || []);
+          setTotalClues(data.total_clues || 5);
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error(err);
+          setPuzzleTitle("Failed to load puzzle. Check connection parameters.");
+          setLoading(false);
+        });
+    }
 
     // Load streak from localStorage if client-side
     const savedStreak = localStorage.getItem("threadly_streak");
     if (savedStreak) {
       setStreak(parseInt(savedStreak, 10));
     }
-  }, []);
+  }, [id]);
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
@@ -145,7 +149,7 @@ export default function Home() {
       i < cluesRevealed ? (isCorrect && i === cluesRevealed - 1 ? "🟩" : "⬛") : "⬜"
     ).join("");
 
-    const shareText = `Threadly Daily Puzzle\nClues used: ${cluesRevealed}/5\n${grid}\nScore: ${score} pts\nPlay at threadly.vercel.app`;
+    const shareText = `Threadly Archive Puzzle Play\nClues used: ${cluesRevealed}/5\n${grid}\nScore: ${score} pts\nPlay at threadly.vercel.app`;
     
     navigator.clipboard.writeText(shareText);
     setShowShareNotification(true);
@@ -169,20 +173,14 @@ export default function Home() {
     <div className="flex flex-col min-h-screen items-center justify-between p-4 bg-background text-foreground transition-colors duration-300">
       {/* Header */}
       <header className="flex w-full max-w-md items-center justify-between py-4 border-b border-border-subtle mb-6">
-        <div className="flex items-center gap-3">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF4500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter drop-shadow-[0_0_8px_rgba(255,69,0,0.6)]">
-            <circle cx="12" cy="5" r="2.5" fill="#FF4500" />
-            <circle cx="5" cy="18" r="2.5" fill="#FF4500" />
-            <circle cx="19" cy="18" r="2.5" fill="#FF4500" />
-            <line x1="12" y1="7.5" x2="6.5" y2="15.5" />
-            <line x1="12" y1="7.5" x2="17.5" y2="15.5" />
-            <line x1="7.5" y1="18" x2="16.5" y2="18" />
+        <Link href="/archive" className="flex items-center gap-3">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF4500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter drop-shadow-[0_0_6px_rgba(255,69,0,0.6)]">
+            <polyline points="15 18 9 12 15 6" />
           </svg>
-          <h1 className="text-2xl font-bold tracking-wider text-[#FF4500]">THREADLY</h1>
-        </div>
+          <span className="text-sm font-bold tracking-wider text-[#FF4500] uppercase">Back</span>
+        </Link>
         
         <div className="flex items-center gap-2">
-          {/* Theme Switcher Button */}
           <button 
             onClick={toggleTheme}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
@@ -198,26 +196,17 @@ export default function Home() {
           >
             ?
           </button>
-          
-          {/* Neumorphic Streak Counter */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background shadow-neumorphic-button border border-border-subtle">
-            <span className="animate-pulse">🔥</span>
-            <span className="font-semibold text-xs text-foreground/80">{streak}d</span>
-          </div>
         </div>
       </header>
 
       {/* Main Game Area */}
       <main className="flex-1 w-full max-w-md flex flex-col justify-center gap-6">
-        {/* How To Play Card */}
         {showHowTo && (
           <div className="p-6 rounded-2xl bg-background shadow-neumorphic-outset border border-border-subtle flex flex-col gap-4 animate-[fadeIn_0.2s_ease-out]">
             <h3 className="text-lg font-bold text-[#FF4500]">How to Play</h3>
             <ul className="text-xs text-foreground/70 space-y-2.5 list-disc pl-4">
-              <li>Find the hidden connection linking the clues.</li>
-              <li>A new clue is revealed sequentially on every wrong guess.</li>
-              <li>Points are awarded based on how many clues you needed: <strong>1 Clue = 100pts</strong> down to <strong>5 Clues = 20pts</strong>.</li>
-              <li>Streak increments every day you solve the daily puzzle.</li>
+              <li>Find the connection linking the clues.</li>
+              <li>A new clue is revealed on wrong guesses.</li>
             </ul>
             <button 
               onClick={() => setShowHowTo(false)}
@@ -227,33 +216,25 @@ export default function Home() {
             </button>
           </div>
         )}
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12 gap-5 animate-[fadeIn_0.3s_ease-out]">
-            {/* Neumorphic Inset Spinner Track */}
             <div className="w-16 h-16 rounded-full bg-background shadow-neumorphic-inset border border-border-subtle flex items-center justify-center relative">
-              {/* Spinning Neon Glowing Ring */}
               <div className="w-10 h-10 rounded-full border-3 border-transparent border-t-[#FF4500] border-r-[#FF4500]/30 animate-spin absolute filter drop-shadow-[0_0_6px_rgba(255,69,0,0.6)]" />
-              {/* Center Dot */}
               <div className="w-4 h-4 rounded-full bg-background shadow-neumorphic-button" />
             </div>
-            {/* Animated Loading Text */}
             <div className="flex flex-col items-center gap-1.5">
-              <span className="text-sm font-bold tracking-widest text-[#FF4500] uppercase animate-pulse filter drop-shadow-[0_0_4px_rgba(255,69,0,0.3)]">
-                Weaving Threads...
-              </span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-foreground/40">
-                Fetching Daily Connection
+              <span className="text-sm font-bold tracking-widest text-[#FF4500] uppercase animate-pulse">
+                Unraveling Thread...
               </span>
             </div>
           </div>
         ) : (
-          /* Game Info Card (Neumorphic Outset) */
           <div className="p-6 rounded-2xl bg-background shadow-neumorphic-outset border border-border-subtle flex flex-col gap-6">
             <div className="flex justify-between items-center">
               <span className="text-xs font-semibold tracking-wider text-foreground/40 uppercase">
-                {puzzleTitle}
+                {puzzleTitle} (Archive)
               </span>
-              {/* LED Status light */}
               <div className="flex items-center gap-2">
                 <span className="text-xs text-foreground/50">Status:</span>
                 <div 
@@ -268,7 +249,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Progressive Clues List */}
             <div className="flex flex-col gap-3">
               {systemClues.slice(0, cluesRevealed).map((clue) => (
                 <div 
@@ -281,28 +261,21 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Clues Remaining Counter */}
-            {!isGameOver && systemClues.length > 0 && (
+            {!isGameOver && (
               <div className="text-center text-xs text-foreground/40 font-medium">
                 {totalClues - cluesRevealed} Clues Remaining
               </div>
             )}
 
-            {/* Game Over Screen */}
             {isGameOver && (
               <div className="flex flex-col items-center gap-4 py-4 border-t border-border-subtle animate-[fadeIn_0.3s_ease-out]">
                 <h3 className="text-lg font-bold">
-                  {isCorrect ? "🎉 Correct Answer!" : "💀 Game Over!"}
+                  {isCorrect ? "🎉 Correct!" : "💀 Solved!"}
                 </h3>
                 {correctAnswer && (
                   <p className="text-sm text-foreground/60">
                     Connection: <strong className="text-[#FF4500] uppercase tracking-wide">{correctAnswer}</strong>
                   </p>
-                )}
-                {isCorrect && (
-                  <div className="px-4 py-2 rounded-xl bg-background shadow-neumorphic-inset text-[#46D160] font-bold text-sm">
-                    +{score} Points Awarded
-                  </div>
                 )}
                 
                 <div className="flex gap-4 w-full mt-2">
@@ -310,13 +283,13 @@ export default function Home() {
                     onClick={handleShare}
                     className="flex-1 py-3 px-4 bg-[#FF4500] hover:bg-[#ff5714] text-white font-bold rounded-xl shadow-[0_0_15px_rgba(255,69,0,0.3)] hover:shadow-[0_0_20px_rgba(255,69,0,0.5)] active:scale-95 transition-all text-sm cursor-pointer"
                   >
-                    Share Score
+                    Share
                   </button>
                   <button
                     onClick={resetGame}
                     className="flex-1 py-3 px-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed text-foreground/80 font-bold rounded-xl hover:text-foreground transition-all text-sm cursor-pointer"
                   >
-                    Try Again
+                    Reset
                   </button>
                 </div>
               </div>
@@ -324,7 +297,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Guess Input Form */}
         {!isGameOver && !loading && (
           <form 
             onSubmit={handleGuessSubmit} 
@@ -347,33 +319,8 @@ export default function Home() {
             </button>
           </form>
         )}
-
-        {/* Guesses Log */}
-        {guesses.length > 0 && !isGameOver && !loading && (
-          <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground/30">Previous Guesses</h4>
-            <div className="flex flex-wrap gap-2">
-              {guesses.map((guess, idx) => (
-                <span 
-                  key={idx} 
-                  className="px-3 py-1.5 rounded-lg bg-background shadow-neumorphic-inset border border-border-subtle text-xs text-foreground/50 line-through decoration-[#FF5C5C]/60"
-                >
-                  {guess}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </main>
 
-      {/* Share Toast Notification */}
-      {showShareNotification && (
-        <div className="fixed bottom-10 px-5 py-3 bg-[#46D160] text-black font-bold text-xs rounded-xl shadow-lg animate-bounce">
-          📋 Score copied to clipboard!
-        </div>
-      )}
-
-      {/* Footer */}
       <footer className="w-full max-w-md text-center py-4 border-t border-border-subtle text-xs text-foreground/20 mt-6">
         Threadly — Think Like The Internet • Daily Puzzle Game
       </footer>

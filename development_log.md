@@ -112,7 +112,47 @@ This log file tracks all development changes to the Threadly project. It is appe
   - [03-api.md](file:///e:/K4NN4N/Threadly/docs/03-api.md): Documented updated/new API contracts.
   - [06-roadmap.md](file:///e:/K4NN4N/Threadly/docs/06-roadmap.md): Updated milestone achievements.
 
-
-
-
-
+## Entry #7: Archive, Admin Moderation, Gemini AI Generator, and Analytics Mappings
+- **Timestamp**: June 15, 2026, 5:45 PM
+- **Why**: Deliver the final execution layer requirements including historical play capabilities, scheduled deck admin controls, automated AI connection generation, and error tracking systems.
+- **When**: Triggered by final MVP and scale backlog requirements.
+- **How**:
+  - Implemented `/api/archive` and `/api/archive/[id]` routes returning past daily puzzles.
+  - Built the neumorphic `/archive` grid page and `/archive/[id]` replay panel.
+  - Built `/api/admin/puzzles` and `/api/admin/publish` for list auditing and status approvals.
+  - Created `/api/admin/generate-ai` utilizing the `@google/genai` model generation wrapper (with fallback trivia catalogs).
+  - Built the Neumorphic Moderation Panel page at `/admin` containing statistics overview and AI connection generation triggers.
+  - Integrated Sentry client telemetry config and Plausible privacy analytics scripts in layouts.
+  - Configured Playwright config and spec files for E2E gameplay verification.
+- **Files Changed**:
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/archive/route.ts): Created archive list endpoint.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/archive/[id]/route.ts): Created archive item details endpoint.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/archive/page.tsx): Created Neumorphic puzzle archive grid page.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/archive/[id]/page.tsx): Created archive connection replay page.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/admin/puzzles/route.ts): Created admin list API.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/admin/publish/route.ts): Created admin publish scheduler API.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/admin/generate-ai/route.ts): Created Gemini AI generator connection API.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/admin/page.tsx): Created Admin Moderation panel page.
+  - [layout.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/layout.tsx): Embedded Plausible script tags.
+  - [sentry.client.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.client.config.ts): Initialized client error boundaries.
+  - [playwright.config.ts](file:///e:/K4NN4N/Threadly/playwright.config.ts): Added E2E testing parameters.
+  - [gameplay.spec.ts](file:///e:/K4NN4N/Threadly/tests/gameplay.spec.ts): Created gameplay simulation test.
+## Entry #8: Sentry SDK Integration and E2E Test Finalization
+- **Timestamp**: June 15, 2026, 6:05 PM
+- **Why**: Finalize Sentry Next.js SDK integration with a production-grade configuration, fix peer dependency conflicts, bypass Next.js 16 Turbopack build bugs with Sentry webpack plugins, and verify E2E gameplay tests pass successfully.
+- **When**: Triggered by user request to set up Sentry using the command wizard and DSN endpoint.
+- **How**:
+  - Added `@sentry/nextjs` dependency to `apps/web/package.json` and resolved peer conflicts using `--legacy-peer-deps`.
+  - Created Sentry configurations for client, server, and edge: `sentry.client.config.ts`, `sentry.server.config.ts`, and `sentry.edge.config.ts`.
+  - Registered Sentry in Next.js startup using `instrumentation.ts` file.
+  - Wrapped `next.config.ts` using `withSentryConfig` wrapper with a 2-argument signature to satisfy typescript checks.
+  - Added `--webpack` flag to `next build` command inside `apps/web/package.json` to fall back to Webpack for Sentry source map uploads.
+  - Verified compilation via a successful Next.js production build and ran E2E Playwright gameplay tests.
+- **Files Changed**:
+  - [package.json](file:///e:/K4NN4N/Threadly/apps/web/package.json): Added `@sentry/nextjs` and updated build script to use webpack.
+  - [.env](file:///e:/K4NN4N/Threadly/apps/web/.env): Configured Sentry DSN.
+  - [next.config.ts](file:///e:/K4NN4N/Threadly/apps/web/next.config.ts): Wrapped config with Sentry build plugins.
+  - [instrumentation.ts](file:///e:/K4NN4N/Threadly/apps/web/instrumentation.ts): Startup loader import for Sentry server/edge configurations.
+  - [sentry.client.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.client.config.ts): Initialized client Sentry tracing.
+  - [sentry.server.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.server.config.ts): Initialized server Sentry tracing.
+  - [sentry.edge.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.edge.config.ts): Initialized edge Sentry tracing.

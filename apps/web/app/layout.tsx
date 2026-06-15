@@ -13,6 +13,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
+      <head>
+        <script defer data-domain="threadly.vercel.app" src="https://plausible.io/js/script.js"></script>
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
       </body>
