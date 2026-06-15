@@ -1,0 +1,227 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String            @id @default(uuid())
+  name          String?
+  email         String?           @unique
+  emailVerified DateTime?         @map("email_verified")
+  image         String?
+  username      String?           @unique
+  createdAt     DateTime          @default(now()) @map("created_at")
+  lastSeen      DateTime          @default(now()) @map("last_seen")
+  
+  accounts      Account[]
+  sessions      Session[]
+  guesses       Guess[]
+  streak        Streak?
+  stats         Stats?
+  achievements  UserAchievement[]
+  leaderboard   Leaderboard?
+  leaderboardEntries LeaderboardEntry[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Puzzle {
+  id            String    @id @default(uuid())
+  title         String
+  answer        String
+  difficulty    Int
+  publishedDate DateTime? @unique @map("published_date") @db.Date
+  status        String    @default("draft")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  clues         Clue[]
+  guesses       Guess[]
+  categories    PuzzleCategory[]
+
+  @@map("puzzles")
+}
+
+model Clue {
+  id        String   @id @default(uuid())
+  puzzleId  String   @map("puzzle_id")
+  clueOrder Int      @map("clue_order")
+  clueText  String   @map("clue_text")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  puzzle    Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@map("clues")
+}
+
+model Guess {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  guestId    String?  @map("guest_id")
+  puzzleId   String   @map("puzzle_id")
+  guessText  String   @map("guess_text")
+  isCorrect  Boolean  @default(false) @map("is_correct")
+  clueNumber Int      @map("clue_number")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  puzzle     Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+
+  @@index([puzzleId, userId])
+  @@index([puzzleId, guestId])
+  @@map("guesses")
+}
+
+model Streak {
+  id            String   @id @default(uuid())
+  userId        String?  @unique @map("user_id")
+  guestId       String?  @unique @map("guest_id")
+  currentStreak Int      @default(0) @map("current_streak")
+  bestStreak    Int      @default(0) @map("best_streak")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model Stats {
+  id           String   @id @default(uuid())
+  userId       String?  @unique @map("user_id")
+  guestId      String?  @unique @map("guest_id")
+  gamesPlayed  Int      @default(0) @map("games_played")
+  gamesWon     Int      @default(0) @map("games_won")
+  averageClues Decimal  @default(0.00) @map("average_clues") @db.Decimal(3, 2)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("stats")
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  icon        String
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  achievementId String   @map("achievement_id")
+  earnedAt      DateTime @default(now()) @map("earned_at")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@map("user_achievements")
+}
+
+model Leaderboard {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  score     Int
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("leaderboards")
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  puzzles   PuzzleCategory[]
+
+  @@map("categories")
+}
+
+model PuzzleCategory {
+  puzzleId   String   @map("puzzle_id")
+  categoryId String   @map("category_id")
+
+  puzzle     Puzzle   @relation(fields: [puzzleId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([puzzleId, categoryId])
+  @@map("puzzles_categories")
+}
+
+model LeaderboardSeason {
+  id        String   @id @default(uuid())
+  name      String
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  entries   LeaderboardEntry[]
+
+  @@map("leaderboard_seasons")
+}
+
+model LeaderboardEntry {
+  id        String   @id @default(uuid())
+  seasonId  String   @map("season_id")
+  userId    String?  @map("user_id")
+  guestId   String?  @map("guest_id")
+  score     Int
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  season    LeaderboardSeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  user      User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, userId])
+  @@index([seasonId, guestId])
+  @@map("leaderboard_entries")
+}

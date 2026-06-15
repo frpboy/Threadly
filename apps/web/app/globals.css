@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0E1113;
+  --color-foreground: #D7DADC;
+  
+  --color-reddit-orange: #FF4500;
+  --color-shadow-light: #1B2024;
+  --color-shadow-dark: #040506;
+  --color-success-green: #46D160;
+  --color-error-red: #FF5C5C;
+  
+  --shadow-neumorphic-outset: 8px 8px 16px #040506, -8px -8px 16px #1B2024;
+  --shadow-neumorphic-inset: inset 6px 6px 12px #040506, inset -6px -6px 12px #1B2024;
+  --shadow-neumorphic-button: 4px 4px 8px #040506, -4px -4px 8px #1B2024;
+  --shadow-neumorphic-button-pressed: inset 4px 4px 8px #040506, inset -4px -4px 8px #1B2024;
+  
+  --shadow-led-success: 0 0 10px #46D160, inset 0 0 5px #46D160;
+  --shadow-led-error: 0 0 10px #FF5C5C, inset 0 0 5px #FF5C5C;
+}
+
+:root {
+  --background: #0E1113;
+  --foreground: #D7DADC;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
