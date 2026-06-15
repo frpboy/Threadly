@@ -25,8 +25,9 @@ export default function Home() {
   const [correctAnswer, setCorrectAnswer] = useState("");
   const [showHowTo, setShowHowTo] = useState(false);
   const [guestId, setGuestId] = useState("");
+  const [theme, setTheme] = useState("dark");
 
-  // Load daily puzzle from database API
+  // Load daily puzzle and theme settings
   useEffect(() => {
     // Generate or fetch guest ID
     let gId = localStorage.getItem("threadly_guest_id");
@@ -37,6 +38,11 @@ export default function Home() {
       localStorage.setItem("threadly_guest_id", gId);
     }
     setGuestId(gId);
+
+    // Initialize theme from storage
+    const savedTheme = localStorage.getItem("threadly_theme") || "dark";
+    setTheme(savedTheme);
+    document.documentElement.setAttribute("data-theme", savedTheme);
 
     fetch("/api/daily")
       .then((res) => {
@@ -62,6 +68,13 @@ export default function Home() {
       setStreak(parseInt(savedStreak, 10));
     }
   }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    document.documentElement.setAttribute("data-theme", newTheme);
+    localStorage.setItem("threadly_theme", newTheme);
+  };
 
   const handleGuessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,9 +166,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen items-center justify-between p-4 bg-[#0E1113]">
+    <div className="flex flex-col min-h-screen items-center justify-between p-4 bg-background text-foreground transition-colors duration-300">
       {/* Header */}
-      <header className="flex w-full max-w-md items-center justify-between py-4 border-b border-white/[0.03] mb-6">
+      <header className="flex w-full max-w-md items-center justify-between py-4 border-b border-border-subtle mb-6">
         <div className="flex items-center gap-3">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF4500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter drop-shadow-[0_0_8px_rgba(255,69,0,0.6)]">
             <circle cx="12" cy="5" r="2.5" fill="#FF4500" />
@@ -168,19 +181,28 @@ export default function Home() {
           <h1 className="text-2xl font-bold tracking-wider text-[#FF4500]">THREADLY</h1>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* Theme Switcher Button */}
+          <button 
+            onClick={toggleTheme}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
+            title="Toggle Theme"
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
+
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#0E1113] shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-white/[0.02] text-sm font-bold text-white/60 hover:text-white transition-all cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer"
             title="How to Play"
           >
             ?
           </button>
           
           {/* Neumorphic Streak Counter */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#0E1113] shadow-neumorphic-button border border-white/[0.02]">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background shadow-neumorphic-button border border-border-subtle">
             <span className="animate-pulse">🔥</span>
-            <span className="font-semibold text-sm">{streak} Day Streak</span>
+            <span className="font-semibold text-xs text-foreground/80">{streak}d</span>
           </div>
         </div>
       </header>
@@ -189,9 +211,9 @@ export default function Home() {
       <main className="flex-1 w-full max-w-md flex flex-col justify-center gap-6">
         {/* How To Play Card */}
         {showHowTo && (
-          <div className="p-6 rounded-2xl bg-[#0E1113] shadow-neumorphic-outset border border-white/[0.02] flex flex-col gap-4 animate-[fadeIn_0.2s_ease-out]">
+          <div className="p-6 rounded-2xl bg-background shadow-neumorphic-outset border border-border-subtle flex flex-col gap-4 animate-[fadeIn_0.2s_ease-out]">
             <h3 className="text-lg font-bold text-[#FF4500]">How to Play</h3>
-            <ul className="text-xs text-white/70 space-y-2.5 list-disc pl-4">
+            <ul className="text-xs text-foreground/70 space-y-2.5 list-disc pl-4">
               <li>Find the hidden connection linking the clues.</li>
               <li>A new clue is revealed sequentially on every wrong guess.</li>
               <li>Points are awarded based on how many clues you needed: <strong>1 Clue = 100pts</strong> down to <strong>5 Clues = 20pts</strong>.</li>
@@ -199,33 +221,33 @@ export default function Home() {
             </ul>
             <button 
               onClick={() => setShowHowTo(false)}
-              className="mt-2 py-2.5 bg-[#0E1113] shadow-neumorphic-button active:shadow-neumorphic-button-pressed text-white/60 hover:text-white font-bold rounded-xl text-xs transition-all cursor-pointer"
+              className="mt-2 py-2.5 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed text-foreground/60 hover:text-foreground font-bold rounded-xl text-xs transition-all cursor-pointer"
             >
               Got it!
             </button>
           </div>
         )}
         {loading ? (
-          <div className="text-center py-10 font-bold text-white/50 animate-pulse">
+          <div className="text-center py-10 font-bold text-foreground/50 animate-pulse">
             Connecting to Neon database...
           </div>
         ) : (
           /* Game Info Card (Neumorphic Outset) */
-          <div className="p-6 rounded-2xl bg-[#0E1113] shadow-neumorphic-outset border border-white/[0.02] flex flex-col gap-6">
+          <div className="p-6 rounded-2xl bg-background shadow-neumorphic-outset border border-border-subtle flex flex-col gap-6">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-semibold tracking-wider text-white/40 uppercase">
+              <span className="text-xs font-semibold tracking-wider text-foreground/40 uppercase">
                 {puzzleTitle}
               </span>
               {/* LED Status light */}
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/50">Status:</span>
+                <span className="text-xs text-foreground/50">Status:</span>
                 <div 
                   className={`w-3.5 h-3.5 rounded-full border border-black/50 transition-all duration-300 ${
                     isGameOver 
                       ? isCorrect 
                         ? "bg-[#46D160] shadow-led-success" 
                         : "bg-[#FF5C5C] shadow-led-error"
-                      : "bg-white/20"
+                      : "bg-foreground/10"
                   }`}
                 />
               </div>
@@ -236,34 +258,34 @@ export default function Home() {
               {systemClues.slice(0, cluesRevealed).map((clue) => (
                 <div 
                   key={clue.order}
-                  className="flex items-center gap-4 p-4 rounded-xl bg-[#0E1113] shadow-neumorphic-inset border border-white/[0.01] animate-[fadeIn_0.2s_ease-out]"
+                  className="flex items-center gap-4 p-4 rounded-xl bg-background shadow-neumorphic-inset border border-border-subtle animate-[fadeIn_0.2s_ease-out]"
                 >
                   <span className="text-xs font-bold text-[#FF4500]">CLUE {clue.order}</span>
-                  <span className="font-medium text-sm text-[#D7DADC]">{clue.text}</span>
+                  <span className="font-medium text-sm text-foreground/80">{clue.text}</span>
                 </div>
               ))}
             </div>
 
             {/* Clues Remaining Counter */}
             {!isGameOver && systemClues.length > 0 && (
-              <div className="text-center text-xs text-white/40 font-medium">
-                {systemClues.length - cluesRevealed} Clues Remaining
+              <div className="text-center text-xs text-foreground/40 font-medium">
+                {totalClues - cluesRevealed} Clues Remaining
               </div>
             )}
 
             {/* Game Over Screen */}
             {isGameOver && (
-              <div className="flex flex-col items-center gap-4 py-4 border-t border-white/[0.03] animate-[fadeIn_0.3s_ease-out]">
+              <div className="flex flex-col items-center gap-4 py-4 border-t border-border-subtle animate-[fadeIn_0.3s_ease-out]">
                 <h3 className="text-lg font-bold">
                   {isCorrect ? "🎉 Correct Answer!" : "💀 Game Over!"}
                 </h3>
                 {correctAnswer && (
-                  <p className="text-sm text-white/60">
+                  <p className="text-sm text-foreground/60">
                     Connection: <strong className="text-[#FF4500] uppercase tracking-wide">{correctAnswer}</strong>
                   </p>
                 )}
                 {isCorrect && (
-                  <div className="px-4 py-2 rounded-xl bg-[#0E1113] shadow-neumorphic-inset text-[#46D160] font-bold text-sm">
+                  <div className="px-4 py-2 rounded-xl bg-background shadow-neumorphic-inset text-[#46D160] font-bold text-sm">
                     +{score} Points Awarded
                   </div>
                 )}
@@ -271,13 +293,13 @@ export default function Home() {
                 <div className="flex gap-4 w-full mt-2">
                   <button
                     onClick={handleShare}
-                    className="flex-1 py-3 px-4 bg-[#FF4500] hover:bg-[#ff5714] text-white font-bold rounded-xl shadow-[0_0_15px_rgba(255,69,0,0.3)] hover:shadow-[0_0_20px_rgba(255,69,0,0.5)] active:scale-95 transition-all text-sm"
+                    className="flex-1 py-3 px-4 bg-[#FF4500] hover:bg-[#ff5714] text-white font-bold rounded-xl shadow-[0_0_15px_rgba(255,69,0,0.3)] hover:shadow-[0_0_20px_rgba(255,69,0,0.5)] active:scale-95 transition-all text-sm cursor-pointer"
                   >
                     Share Score
                   </button>
                   <button
                     onClick={resetGame}
-                    className="flex-1 py-3 px-4 bg-[#0E1113] shadow-neumorphic-button active:shadow-neumorphic-button-pressed text-white/80 font-bold rounded-xl hover:text-white transition-all text-sm"
+                    className="flex-1 py-3 px-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed text-foreground/80 font-bold rounded-xl hover:text-foreground transition-all text-sm cursor-pointer"
                   >
                     Try Again
                   </button>
@@ -299,12 +321,12 @@ export default function Home() {
                 value={guessText}
                 onChange={(e) => setGuessText(e.target.value)}
                 placeholder="What is the connection?"
-                className="w-full py-4 px-5 bg-[#0E1113] shadow-neumorphic-inset border border-white/[0.01] focus:border-[#FF4500]/30 outline-none text-sm text-[#D7DADC] rounded-xl transition-all"
+                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/30 outline-none text-sm text-foreground/80 rounded-xl transition-all"
               />
             </div>
             <button
               type="submit"
-              className="py-4 bg-[#0E1113] shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-white/[0.02] text-white font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider"
+              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer"
             >
               Submit Guess
             </button>
@@ -314,12 +336,12 @@ export default function Home() {
         {/* Guesses Log */}
         {guesses.length > 0 && !isGameOver && !loading && (
           <div className="flex flex-col gap-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-white/30">Previous Guesses</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground/30">Previous Guesses</h4>
             <div className="flex flex-wrap gap-2">
               {guesses.map((guess, idx) => (
                 <span 
                   key={idx} 
-                  className="px-3 py-1.5 rounded-lg bg-[#0E1113] shadow-neumorphic-inset border border-white/[0.01] text-xs text-white/50 line-through decoration-[#FF5C5C]/60"
+                  className="px-3 py-1.5 rounded-lg bg-background shadow-neumorphic-inset border border-border-subtle text-xs text-foreground/50 line-through decoration-[#FF5C5C]/60"
                 >
                   {guess}
                 </span>
@@ -337,10 +359,9 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <footer className="w-full max-w-md text-center py-4 border-t border-white/[0.02] text-xs text-white/20 mt-6">
+      <footer className="w-full max-w-md text-center py-4 border-t border-border-subtle text-xs text-foreground/20 mt-6">
         Threadly — Think Like The Internet • Daily Puzzle Game
       </footer>
     </div>
   );
 }
-

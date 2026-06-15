@@ -1,19 +1,17 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0E1113;
-  --color-foreground: #D7DADC;
-  
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
   --color-reddit-orange: #FF4500;
-  --color-shadow-light: #1B2024;
-  --color-shadow-dark: #040506;
   --color-success-green: #46D160;
   --color-error-red: #FF5C5C;
+  --color-border-subtle: var(--border-subtle);
   
-  --shadow-neumorphic-outset: 8px 8px 16px #040506, -8px -8px 16px #1B2024;
-  --shadow-neumorphic-inset: inset 6px 6px 12px #040506, inset -6px -6px 12px #1B2024;
-  --shadow-neumorphic-button: 4px 4px 8px #040506, -4px -4px 8px #1B2024;
-  --shadow-neumorphic-button-pressed: inset 4px 4px 8px #040506, inset -4px -4px 8px #1B2024;
+  --shadow-neumorphic-outset: var(--neumorphic-outset);
+  --shadow-neumorphic-inset: var(--neumorphic-inset);
+  --shadow-neumorphic-button: var(--neumorphic-button);
+  --shadow-neumorphic-button-pressed: var(--neumorphic-button-pressed);
   
   --shadow-led-success: 0 0 10px #46D160, inset 0 0 5px #46D160;
   --shadow-led-error: 0 0 10px #FF5C5C, inset 0 0 5px #FF5C5C;
@@ -22,6 +20,21 @@
 :root {
   --background: #0E1113;
   --foreground: #D7DADC;
+  --neumorphic-outset: 8px 8px 16px #040506, -8px -8px 16px #1B2024;
+  --neumorphic-inset: inset 6px 6px 12px #040506, inset -6px -6px 12px #1B2024;
+  --neumorphic-button: 4px 4px 8px #040506, -4px -4px 8px #1B2024;
+  --neumorphic-button-pressed: inset 4px 4px 8px #040506, inset -4px -4px 8px #1B2024;
+  --border-subtle: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme="light"] {
+  --background: #E0E5EC;
+  --foreground: #2D3748;
+  --neumorphic-outset: 8px 8px 16px #A3B1C6, -8px -8px 16px #FFFFFF;
+  --neumorphic-inset: inset 6px 6px 12px #A3B1C6, inset -6px -6px 12px #FFFFFF;
+  --neumorphic-button: 4px 4px 8px #A3B1C6, -4px -4px 8px #FFFFFF;
+  --neumorphic-button-pressed: inset 4px 4px 8px #A3B1C6, inset -4px -4px 8px #FFFFFF;
+  --border-subtle: rgba(0, 0, 0, 0.05);
 }
 
 body {
@@ -30,5 +43,5 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
-

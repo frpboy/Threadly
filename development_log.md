@@ -69,4 +69,34 @@ This log file tracks all development changes to the Threadly project. It is appe
   - [statsService.ts](file:///e:/K4NN4N/Threadly/apps/web/services/statsService.ts): Created stats telemetry service.
   - [difficultyService.ts](file:///e:/K4NN4N/Threadly/apps/web/services/difficultyService.ts): Created difficulty mapping system.
 
+## Entry #4: Light and Dark Theme Switcher
+- **Timestamp**: June 15, 2026, 5:20 PM
+- **Why**: Improve user experience and visual accessibility by allowing players to choose between the default premium dark neumorphic styling and a clean light neumorphic styling.
+- **When**: Triggered by user request for a theme switcher.
+- **How**:
+  - Defined CSS custom properties for background, foreground, neumorphic outset/inset shadows, and subtle borders in both default (dark) and `[data-theme="light"]` selectors inside `globals.css`.
+  - Linked CSS variables to TailwindCSS v4 `@theme` configuration.
+  - Added theme state hook (`theme`, `setTheme`) in `page.tsx` initialized from `localStorage`.
+  - Implemented `toggleTheme()` to update the `data-theme` attribute on `document.documentElement` and persist in storage.
+  - Refactored layout styling classes to use theme-agnostic design tokens (`bg-background`, `text-foreground`, `text-foreground/85` etc.) instead of hardcoded dark values.
+  - Placed an interactive sun/moon toggle button in the header.
+- **Files Changed**:
+  - [globals.css](file:///e:/K4NN4N/Threadly/apps/web/app/globals.css): Created theme-specific shadows and custom colors.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/page.tsx): Added toggle button, localStorage synchronization, and theme-neutral layout tokens.
+
+## Entry #5: Layout Cleanups and Outline Fixes
+- **Timestamp**: June 15, 2026, 5:25 PM
+- **Why**: Fix the theme switcher not functioning and remove the thick white outlines on the neumorphic card boxes.
+- **When**: Triggered by bug reports regarding switcher functionality and visual outline issues.
+- **How**:
+  - Modified [layout.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/layout.tsx) to remove the hardcoded `dark` class from the `html` tag and the hardcoded `bg-[#0E1113]` and `text-[#D7DADC]` classes from the `body` tag, allowing the dynamic CSS variables in `globals.css` to govern background and text styles.
+  - Defined `--color-border-subtle: var(--border-subtle);` inside `@theme` in `globals.css` to enable low-opacity borders in Tailwind.
+  - Replaced all raw border opacity mappings in `page.tsx` with `border border-border-subtle`, which makes the outlines almost invisible in dark mode and perfectly light in light mode, preserving the neumorphic look.
+- **Files Changed**:
+  - [layout.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/layout.tsx): Removed hardcoded dark-mode background/text classes.
+  - [globals.css](file:///e:/K4NN4N/Threadly/apps/web/app/globals.css): Defined `--color-border-subtle` mapping.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/page.tsx): Replaced arbitrary outline border declarations with `border-border-subtle`.
+
+
+
 
