@@ -89,7 +89,7 @@ export default function Home() {
         setIsCorrect(true);
         setIsGameOver(true);
         setScore(result.score_awarded);
-        const newStreak = streak + 1;
+        const newStreak = typeof result.streak === "number" ? result.streak : streak + 1;
         setStreak(newStreak);
         localStorage.setItem("threadly_streak", newStreak.toString());
       } else {

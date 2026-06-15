@@ -51,3 +51,22 @@ This log file tracks all development changes to the Threadly project. It is appe
   - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/clue/route.ts): Created progressive clue validation endpoint.
   - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/page.tsx): Updated guest ID reconciliation, guess payload, progressive fetch calls, and reset game state.
 
+## Entry #3: Database-Backed Streaks, Stats, Difficulty Recalibration, and Leaderboards
+- **Timestamp**: June 15, 2026, 5:15 PM
+- **Why**: Transition client state tracking to a robust, server-side database model to support secure seasonal rankings and user telemetry tracking.
+- **When**: Triggered by database-backed stats and leaderboard backlog requirements (Phase 2 & Phase 3).
+- **How**:
+  - Migrated `schema.prisma` to support guest user IDs on `Streak` and `Stats` tables, added multi-category junction tables, and added seasonal leaderboard models.
+  - Implemented decoupled services under `apps/web/services`: `streakService.ts`, `statsService.ts`, `difficultyService.ts` (Dynamic Difficulty Engine).
+  - Created a new `/api/leaderboard` endpoint handling seasonal entries and GET lists.
+  - Refactored `/api/guess` POST handler to invoke streak/stats increments, log scores to leaderboard seasons, and recalculate dynamic puzzle difficulty.
+- **Files Changed**:
+  - [schema.prisma](file:///e:/K4NN4N/Threadly/apps/web/prisma/schema.prisma): Extended schema models.
+  - [page.tsx](file:///e:/K4NN4N/Threadly/apps/web/app/page.tsx): Updated page component to consume database-backed streak payloads from server.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/guess/route.ts): Refactored guess processor to trigger services.
+  - [route.ts](file:///e:/K4NN4N/Threadly/apps/web/app/api/leaderboard/route.ts): Created new leaderboard route.
+  - [streakService.ts](file:///e:/K4NN4N/Threadly/apps/web/services/streakService.ts): Created streak logic service.
+  - [statsService.ts](file:///e:/K4NN4N/Threadly/apps/web/services/statsService.ts): Created stats telemetry service.
+  - [difficultyService.ts](file:///e:/K4NN4N/Threadly/apps/web/services/difficultyService.ts): Created difficulty mapping system.
+
+
