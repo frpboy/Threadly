@@ -156,3 +156,11 @@ This log file tracks all development changes to the Threadly project. It is appe
   - [sentry.client.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.client.config.ts): Initialized client Sentry tracing.
   - [sentry.server.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.server.config.ts): Initialized server Sentry tracing.
   - [sentry.edge.config.ts](file:///e:/K4NN4N/Threadly/apps/web/sentry.edge.config.ts): Initialized edge Sentry tracing.
+## Entry #9: Prisma Client Generation Fix on Vercel
+- **Timestamp**: June 15, 2026, 6:22 PM
+- **Why**: Fix the Vercel deployment build error where static page generation fails (`Error: Failed to collect page data for /api/admin/generate-ai`) due to an outdated or missing Prisma Client cache on Vercel.
+- **When**: Triggered by Vercel compilation logs showing dependency caching issues.
+- **How**:
+  - Prepended `prisma generate &&` to the build script in `apps/web/package.json` to ensure the Prisma Client is always regenerated on Vercel prior to triggering `next build`.
+- **Files Changed**:
+  - [package.json](file:///e:/K4NN4N/Threadly/apps/web/package.json): Updated the `build` script.
