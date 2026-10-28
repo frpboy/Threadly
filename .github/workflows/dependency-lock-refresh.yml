@@ -28,6 +28,7 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then
             npm audit fix --package-lock-only --ignore-scripts --no-fund || audit_status=$?
+            npm update --package-lock-only --lockfile-version=3 --ignore-scripts --no-fund
             npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           fi
           if [ -f apps/web/package-lock.json ]; then
