@@ -3,16 +3,22 @@ on:
   push:
     branches:
       - "security/dependency-remediation-*"
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
 permissions:
   contents: write
 jobs:
   remediate:
-    if: github.event.head_commit.message != 'chore(deps): refresh lockfile after audit fix'
+    if: >-
+      (github.event_name == 'push' && github.event.head_commit.message != 'chore(deps): refresh lockfile after audit fix')
+      || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'security/dependency-remediation-'))
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           persist-credentials: true
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -38,4 +44,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "chore(deps): refresh lockfile after audit fix"
-          git push
+          git push origin HEAD:${{ github.head_ref || github.ref_name }}
