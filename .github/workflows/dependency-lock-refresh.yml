@@ -26,10 +26,11 @@ jobs:
           node-version: 24
       - name: Apply non-breaking npm vulnerability fixes
         run: |
-          if [ -f package-lock.json ]; then
-            npm audit fix --package-lock-only --ignore-scripts --no-fund || audit_status=$?
+          if [ -f package.json ]; then
+            rm -f package-lock.json
+            npm install --package-lock-only --lockfile-version=3 --ignore-scripts --no-audit --no-fund
+            npm audit fix --package-lock-only --lockfile-version=3 --ignore-scripts --no-fund || true
             npm update --package-lock-only --lockfile-version=3 --ignore-scripts --no-fund
-            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           fi
           if [ -f apps/web/package-lock.json ]; then
             (cd apps/web && npm audit fix --package-lock-only --ignore-scripts --no-fund || true)
