@@ -21,7 +21,7 @@ jobs:
           ref: ${{ github.head_ref || github.ref_name }}
           persist-credentials: true
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Apply non-breaking npm vulnerability fixes
