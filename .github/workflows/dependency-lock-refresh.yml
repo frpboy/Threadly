@@ -1,0 +1,41 @@
+name: Dependency vulnerability lockfile remediation
+on:
+  push:
+    branches:
+      - "security/dependency-remediation-*"
+permissions:
+  contents: write
+jobs:
+  remediate:
+    if: github.event.head_commit.message != 'chore(deps): refresh lockfile after audit fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Apply non-breaking npm vulnerability fixes
+        run: |
+          if [ -f package-lock.json ]; then
+            npm audit fix --package-lock-only --ignore-scripts --no-fund || audit_status=$?
+            npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          fi
+          if [ -f apps/web/package-lock.json ]; then
+            (cd apps/web && npm audit fix --package-lock-only --ignore-scripts --no-fund || true)
+            (cd apps/web && npm install --package-lock-only --ignore-scripts --no-audit --no-fund)
+          fi
+      - name: Commit refreshed lockfiles
+        run: |
+          git add package-lock.json apps/web/package-lock.json 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No lockfile changes were needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(deps): refresh lockfile after audit fix"
+          git push
