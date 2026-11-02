@@ -63,7 +63,7 @@ export async function GET() {
   } catch (error: any) {
     console.error("Leaderboard GET failed:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Leaderboard POST failed:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
