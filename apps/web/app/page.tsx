@@ -185,16 +185,19 @@ export default function Home() {
           {/* Theme Switcher Button */}
           <button 
             onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]"
             title="Toggle Theme"
+            aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
 
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]"
             title="How to Play"
+            aria-label="How to play instructions"
+            aria-expanded={showHowTo}
           >
             ?
           </button>
@@ -331,17 +334,23 @@ export default function Home() {
             className={`flex flex-col gap-4 transition-transform duration-300 ${shake ? "animate-bounce" : ""}`}
           >
             <div className="relative">
+              <label htmlFor="guess-input" className="sr-only">
+                What is the connection?
+              </label>
               <input
+                id="guess-input"
                 type="text"
                 value={guessText}
                 onChange={(e) => setGuessText(e.target.value)}
                 placeholder="What is the connection?"
-                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/30 outline-none text-sm text-foreground/80 rounded-xl transition-all"
+                aria-label="What is the connection?"
+                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/40 text-sm text-foreground/80 rounded-xl transition-all"
               />
             </div>
             <button
               type="submit"
-              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer"
+              disabled={!guessText.trim()}
+              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]"
             >
               Submit Guess
             </button>
