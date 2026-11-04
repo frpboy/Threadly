@@ -24,6 +24,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [correctAnswer, setCorrectAnswer] = useState("");
   const [showHowTo, setShowHowTo] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [guestId, setGuestId] = useState("");
   const [theme, setTheme] = useState("dark");
 
@@ -78,8 +79,9 @@ export default function Home() {
 
   const handleGuessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!guessText.trim() || isGameOver || !puzzleId) return;
+    if (!guessText.trim() || isGameOver || !puzzleId || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/guess", {
         method: "POST",
@@ -137,6 +139,8 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error submitting guess:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -185,6 +189,7 @@ export default function Home() {
           {/* Theme Switcher Button */}
           <button 
             onClick={toggleTheme}
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
             title="Toggle Theme"
           >
@@ -193,6 +198,8 @@ export default function Home() {
 
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
+            aria-label="How to play instructions"
+            aria-expanded={showHowTo}
             className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer"
             title="How to Play"
           >
@@ -328,6 +335,7 @@ export default function Home() {
         {!isGameOver && !loading && (
           <form 
             onSubmit={handleGuessSubmit} 
+            aria-busy={isSubmitting}
             className={`flex flex-col gap-4 transition-transform duration-300 ${shake ? "animate-bounce" : ""}`}
           >
             <div className="relative">
@@ -336,14 +344,24 @@ export default function Home() {
                 value={guessText}
                 onChange={(e) => setGuessText(e.target.value)}
                 placeholder="What is the connection?"
-                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/30 outline-none text-sm text-foreground/80 rounded-xl transition-all"
+                aria-label="Guess connection"
+                disabled={isSubmitting}
+                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/30 outline-none text-sm text-foreground/80 rounded-xl transition-all disabled:opacity-60"
               />
             </div>
             <button
               type="submit"
-              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer"
+              disabled={isSubmitting || !guessText.trim()}
+              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Submit Guess
+              {isSubmitting ? (
+                <>
+                  <span className="w-4 h-4 rounded-full border-2 border-transparent border-t-[#FF4500] animate-spin inline-block" />
+                  Checking Connection...
+                </>
+              ) : (
+                "Submit Guess"
+              )}
             </button>
           </form>
         )}
