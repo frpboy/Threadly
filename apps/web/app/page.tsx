@@ -20,6 +20,7 @@ export default function Home() {
   const [shake, setShake] = useState(false);
   const [streak, setStreak] = useState(12);
   const [score, setScore] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showShareNotification, setShowShareNotification] = useState(false);
   const [loading, setLoading] = useState(true);
   const [correctAnswer, setCorrectAnswer] = useState("");
@@ -78,8 +79,9 @@ export default function Home() {
 
   const handleGuessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!guessText.trim() || isGameOver || !puzzleId) return;
+    if (!guessText.trim() || isGameOver || !puzzleId || isSubmitting) return;
 
+    setIsSubmitting(true);
     try {
       const res = await fetch("/api/guess", {
         method: "POST",
@@ -137,6 +139,8 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error submitting guess:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -185,7 +189,8 @@ export default function Home() {
           {/* Theme Switcher Button */}
           <button 
             onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
             title="Toggle Theme"
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -193,7 +198,9 @@ export default function Home() {
 
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer"
+            aria-label="How to Play instructions"
+            aria-expanded={showHowTo}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
             title="How to Play"
           >
             ?
@@ -332,18 +339,33 @@ export default function Home() {
           >
             <div className="relative">
               <input
+                id="guess-input"
                 type="text"
                 value={guessText}
                 onChange={(e) => setGuessText(e.target.value)}
                 placeholder="What is the connection?"
-                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/30 outline-none text-sm text-foreground/80 rounded-xl transition-all"
+                aria-label="Guess connection"
+                aria-required="true"
+                autoComplete="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                disabled={isSubmitting}
+                className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/50 focus-visible:ring-2 focus-visible:ring-[#FF4500]/40 outline-none text-sm text-foreground/80 rounded-xl transition-all disabled:opacity-60"
               />
             </div>
             <button
               type="submit"
-              className="py-4 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] transition-all text-sm uppercase tracking-wider cursor-pointer"
+              disabled={isSubmitting || !guessText.trim()}
+              className="py-4 flex items-center justify-center gap-2 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60 transition-all text-sm uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Submit Guess
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-transparent border-t-[#FF4500] rounded-full animate-spin" />
+                  <span>Checking...</span>
+                </>
+              ) : (
+                "Submit Guess"
+              )}
             </button>
           </form>
         )}
@@ -368,7 +390,11 @@ export default function Home() {
 
       {/* Share Toast Notification */}
       {showShareNotification && (
-        <div className="fixed bottom-10 px-5 py-3 bg-[#46D160] text-black font-bold text-xs rounded-xl shadow-lg animate-bounce">
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-10 px-5 py-3 bg-[#46D160] text-black font-bold text-xs rounded-xl shadow-lg animate-bounce"
+        >
           📋 Score copied to clipboard!
         </div>
       )}
