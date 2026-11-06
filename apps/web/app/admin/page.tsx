@@ -27,7 +27,7 @@ export default function AdminDashboard() {
     setTheme(savedTheme);
     document.documentElement.setAttribute("data-theme", savedTheme);
 
-    const savedToken = localStorage.getItem("threadly_admin_token");
+    const savedToken = sessionStorage.getItem("threadly_admin_token");
     if (savedToken) setToken(savedToken);
     fetchPuzzles(savedToken || undefined);
   }, []);
@@ -159,7 +159,7 @@ export default function AdminDashboard() {
               Admin token required
             </label>
             <p className="text-xs text-foreground/50">
-              Enter the admin token configured for this deployment. It is stored only in this browser.
+              Enter the admin token configured for this deployment. It is stored only in this browser tab and cleared when the tab closes.
             </p>
             <div className="flex gap-2">
               <input
@@ -173,7 +173,7 @@ export default function AdminDashboard() {
               />
               <button
                 onClick={() => {
-                  localStorage.setItem("threadly_admin_token", token);
+                  sessionStorage.setItem("threadly_admin_token", token);
                   setAuthFailed(false);
                   setLoading(true);
                   fetchPuzzles();
