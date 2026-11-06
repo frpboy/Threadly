@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { GoogleGenAI } from "@google/genai";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 
 // Predefined catalog of premium mock puzzles in case GEMINI_API_KEY is not set
 const MOCK_CATALOG = [
@@ -37,6 +38,11 @@ const MOCK_CATALOG = [
 ];
 
 export async function POST(req: NextRequest) {
+  // Enforce administrative authorization to prevent arbitrary AI generation or database flooding
+  if (!verifyAdminRequest(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     let puzzleData;
@@ -107,7 +113,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("AI Generation pipeline failed:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }

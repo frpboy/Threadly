@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { verifyAdminRequest } from "@/lib/adminAuth";
 
 export async function POST(req: NextRequest) {
+  // Enforce administrative authorization to prevent unauthorized publishing/scheduling of puzzles
+  if (!verifyAdminRequest(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const { puzzle_id, publish_date } = await req.json();
 
@@ -31,7 +37,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Failed to publish puzzle:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
