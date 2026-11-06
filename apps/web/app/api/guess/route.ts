@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Failed to process guess:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
