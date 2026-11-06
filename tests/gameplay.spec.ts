@@ -19,3 +19,21 @@ test("toggles How to Play modal instruction card", async ({ page }) => {
   await page.locator("button:has-text('Got it!')").click();
   await expect(page.locator("h3")).not.toBeVisible();
 });
+
+test("navigates between home and puzzle archive via accessible controls", async ({ page }) => {
+  await page.goto("/");
+
+  const archiveLink = page.getByRole("link", { name: "Puzzle Archive" });
+  await expect(archiveLink).toBeVisible();
+  await archiveLink.click();
+
+  await expect(page).toHaveURL(/\/archive/);
+  await expect(page.locator("h2")).toContainText("PUZZLE ARCHIVE");
+
+  const dailyPlayLink = page.getByRole("link", { name: "Daily Play" });
+  await expect(dailyPlayLink).toBeVisible();
+  await dailyPlayLink.click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator("h1")).toContainText("THREADLY");
+});

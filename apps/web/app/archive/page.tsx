@@ -69,7 +69,8 @@ export default function Archive() {
           {/* Theme Switcher Button */}
           <button 
             onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
             title="Toggle Theme"
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -77,7 +78,7 @@ export default function Archive() {
           
           <Link 
             href="/"
-            className="px-4 py-2 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-xs font-bold text-[#FF4500] hover:text-foreground transition-all cursor-pointer uppercase tracking-wider"
+            className="px-4 py-2 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-xs font-bold text-[#FF4500] hover:text-foreground transition-all cursor-pointer uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
           >
             Daily Play
           </Link>
@@ -117,13 +118,13 @@ export default function Archive() {
                   <h3 className="text-sm font-bold text-foreground/80 uppercase truncate">{puzzle.title}</h3>
                   <div className="p-3 mt-1 rounded-xl bg-background shadow-neumorphic-inset border border-border-subtle flex gap-3 items-center">
                     <span className="text-[10px] font-extrabold text-[#FF4500] uppercase">First clue</span>
-                    <span className="text-xs font-medium truncate text-foreground/75">"{puzzle.first_clue}"</span>
+                    <span className="text-xs font-medium truncate text-foreground/75">&ldquo;{puzzle.first_clue}&rdquo;</span>
                   </div>
                 </div>
 
                 <Link 
                   href={`/archive/${puzzle.id}`}
-                  className="w-full py-2.5 text-center bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-xs font-bold rounded-xl text-foreground/80 hover:text-[#FF4500] uppercase tracking-wider transition-all"
+                  className="w-full py-2.5 text-center bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-xs font-bold rounded-xl text-foreground/80 hover:text-[#FF4500] uppercase tracking-wider transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
                 >
                   Play Puzzle
                 </Link>

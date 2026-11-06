@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 
 interface Clue {
   order: number;
@@ -195,6 +196,15 @@ export default function Home() {
           >
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
+
+          <Link
+            href="/archive"
+            aria-label="Puzzle Archive"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
+            title="Archive"
+          >
+            📚
+          </Link>
 
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
