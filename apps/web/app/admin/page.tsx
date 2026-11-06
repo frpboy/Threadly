@@ -18,6 +18,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [theme, setTheme] = useState("dark");
+  const [token, setToken] = useState("");
+  const [authFailed, setAuthFailed] = useState(false);
 
   useEffect(() => {
     // Initialize theme from storage
@@ -25,12 +27,18 @@ export default function AdminDashboard() {
     setTheme(savedTheme);
     document.documentElement.setAttribute("data-theme", savedTheme);
 
-    fetchPuzzles();
+    const savedToken = localStorage.getItem("threadly_admin_token");
+    if (savedToken) setToken(savedToken);
+    fetchPuzzles(savedToken || undefined);
   }, []);
 
-  const fetchPuzzles = () => {
-    fetch("/api/admin/puzzles")
+  const fetchPuzzles = (explicitToken?: string) => {
+    const activeToken = explicitToken ?? token;
+    fetch("/api/admin/puzzles", {
+      headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
+    })
       .then((res) => {
+        if (res.status === 401) { setAuthFailed(true); throw new Error("Unauthorized"); }
         if (!res.ok) throw new Error("Failed to fetch");
         return res.json();
       })
@@ -49,7 +57,9 @@ export default function AdminDashboard() {
     try {
       const res = await fetch("/api/admin/generate-ai", {
         method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+      if (res.status === 401) { setAuthFailed(true); alert("Unauthorized - check your admin token"); return; }
       const data = await res.json();
       if (data.success) {
         fetchPuzzles();
@@ -69,12 +79,16 @@ export default function AdminDashboard() {
       const today = new Date().toISOString().split('T')[0];
       const res = await fetch("/api/admin/publish", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           puzzle_id: id,
           publish_date: today
         })
       });
+      if (res.status === 401) { setAuthFailed(true); alert("Unauthorized - check your admin token"); return; }
       const data = await res.json();
       if (data.success) {
         fetchPuzzles();
@@ -138,6 +152,39 @@ export default function AdminDashboard() {
             <span>Generate connection with Gemini AI</span>
           </button>
         </div>
+
+        {(authFailed || !token) && (
+          <div className="flex flex-col gap-3 p-5 rounded-2xl bg-background shadow-neumorphic-outset border border-border-subtle">
+            <label htmlFor="admin-token" className="text-xs font-bold uppercase tracking-widest text-[#FF4500]">
+              Admin token required
+            </label>
+            <p className="text-xs text-foreground/50">
+              Enter the admin token configured for this deployment. It is stored only in this browser.
+            </p>
+            <div className="flex gap-2">
+              <input
+                id="admin-token"
+                type="password"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Admin token"
+                autoComplete="off"
+                className="flex-1 px-4 py-2 rounded-xl bg-background shadow-neumorphic-inset border border-border-subtle text-sm"
+              />
+              <button
+                onClick={() => {
+                  localStorage.setItem("threadly_admin_token", token);
+                  setAuthFailed(false);
+                  setLoading(true);
+                  fetchPuzzles();
+                }}
+                className="px-4 py-2 bg-[#FF4500] text-white text-xs font-bold uppercase rounded-xl cursor-pointer"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
