@@ -9,51 +9,97 @@ import { recalculatePuzzleDifficulty } from "@/services/difficultyService";
 
 export async function POST(req: NextRequest) {
   try {
-    const { puzzle_id, guess, clues_revealed = 1, guest_id } = await req.json();
+    const payload = await req.json();
+    const puzzleId = payload?.puzzle_id;
+    const guess = payload?.guess;
+    const guestId = payload?.guest_id;
 
-    if (!puzzle_id || !guess) {
+    if (typeof puzzleId !== "string" || !puzzleId.trim() ||
+        typeof guess !== "string" || !guess.trim() || guess.length > 200 ||
+        (guestId !== undefined && guestId !== null &&
+          (typeof guestId !== "string" || guestId.length > 128))) {
       return NextResponse.json(
-        { error: "puzzle_id and guess fields are required" },
+        { error: "puzzle_id and a valid guess are required" },
         { status: 400 }
       );
     }
 
+    const session = await auth();
+    const userId = (session?.user as any)?.id || null;
+    if (!userId && !guestId) {
+      return NextResponse.json(
+        { error: "Authentication or guest_id is required" },
+        { status: 401 }
+      );
+    }
+
     const puzzle = await db.puzzle.findUnique({
-      where: { id: puzzle_id }
+      where: { id: puzzleId },
+      include: {
+        clues: {
+          select: { clueOrder: true },
+          orderBy: { clueOrder: "asc" }
+        }
+      }
     });
 
     if (!puzzle) {
       return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
     }
 
-    // Get current session for logged in user
-    const session = await auth();
-    const userId = (session?.user as any)?.id || null;
-
-    const { isCorrect, similarity } = checkAnswer(guess, puzzle.answer);
-    
-    let scoreAwarded = 0;
-    if (isCorrect) {
-      scoreAwarded = calculateScore(clues_revealed);
+    const totalClues = puzzle.clues.length;
+    if (totalClues === 0) {
+      return NextResponse.json({ error: "Puzzle has no clues" }, { status: 409 });
     }
 
-    // Log the guess auditing in DB
+    const playerFilter = userId ? { userId } : { guestId };
+    const priorGuesses = await db.guess.findMany({
+      where: { puzzleId: puzzle.id, ...playerFilter },
+      select: { isCorrect: true },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+    });
+
+    if (priorGuesses.some((entry) => entry.isCorrect)) {
+      return NextResponse.json(
+        { error: "GAME_ALREADY_FINISHED" },
+        { status: 409 }
+      );
+    }
+    if (priorGuesses.length >= totalClues) {
+      return NextResponse.json(
+        { error: "GAME_EXHAUSTED" },
+        { status: 409 }
+      );
+    }
+
+    // The server derives the active clue from persisted attempts. Never trust
+    // a client-provided clues_revealed value for score or answer disclosure.
+    const clueNumber = Math.min(priorGuesses.length + 1, totalClues);
+    const normalizedGuess = guess.trim();
+    const { isCorrect, similarity } = checkAnswer(normalizedGuess, puzzle.answer);
+    const scoreAwarded = isCorrect ? calculateScore(clueNumber) : 0;
+
     await db.guess.create({
       data: {
         userId,
-        guestId: guest_id || null,
+        guestId: userId ? null : guestId,
         puzzleId: puzzle.id,
-        guessText: guess,
-        isCorrect: isCorrect,
-        clueNumber: clues_revealed
+        guessText: normalizedGuess,
+        isCorrect,
+        clueNumber
       }
     });
 
-    // Update player streak and statistics
-    const streakInfo = await updatePlayerStreak(userId, guest_id || null, isCorrect);
-    const statsInfo = await updatePlayerStats(userId, guest_id || null, isCorrect, clues_revealed);
+    // Count a completed game once, rather than incrementing gamesPlayed on
+    // every incorrect attempt.
+    const gameFinished = isCorrect || clueNumber >= totalClues;
+    const streakInfo = isCorrect
+      ? await updatePlayerStreak(userId, userId ? null : guestId, true)
+      : null;
+    const statsInfo = gameFinished
+      ? await updatePlayerStats(userId, userId ? null : guestId, isCorrect, clueNumber)
+      : null;
 
-    // If solved correctly, log score to the active leaderboard season
     if (isCorrect && scoreAwarded > 0) {
       try {
         const today = new Date();
@@ -68,18 +114,18 @@ export async function POST(req: NextRequest) {
           endDate.setDate(endDate.getDate() + 30);
           season = await db.leaderboardSeason.create({
             data: {
-              name: `Season ${new Date().toLocaleString("default", { month: "long" })} ${new Date().getFullYear()}`,
+              name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
               startDate: today,
-              endDate: endDate
+              endDate
             }
           });
         }
-        
-        const userFilter = userId ? { userId } : { guestId: guest_id };
+
+        const userFilter = userId ? { userId } : { guestId };
         const existingEntry = await db.leaderboardEntry.findFirst({
           where: { seasonId: season.id, ...userFilter }
         });
-        
+
         if (existingEntry) {
           await db.leaderboardEntry.update({
             where: { id: existingEntry.id },
@@ -92,36 +138,42 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date()
           };
           if (userId) data.userId = userId;
-          else if (guest_id) data.guestId = guest_id;
+          else data.guestId = guestId;
           await db.leaderboardEntry.create({ data });
         }
       } catch (leaderboardErr) {
-        console.error("Failed to update leaderboard score:", leaderboardErr);
+        console.error("Failed to update leaderboard score:", {
+          name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
+        });
       }
     }
 
-    // Run dynamic difficulty assessment asynchronously in background
-    recalculatePuzzleDifficulty(puzzle.id).catch(err => {
-      console.error("Difficulty engine failed:", err);
+    recalculatePuzzleDifficulty(puzzle.id).catch((error) => {
+      console.error("Difficulty engine failed:", {
+        name: error instanceof Error ? error.name : "UnknownError"
+      });
     });
 
-    const showAnswer = isCorrect || clues_revealed >= 5;
-
+    const showAnswer = isCorrect || clueNumber >= totalClues;
     return NextResponse.json({
       correct: isCorrect,
-      similarity_score: parseFloat(similarity.toFixed(2)),
-      clues_used: clues_revealed,
+      similarity_score: Number(similarity.toFixed(2)),
+      clues_used: clueNumber,
       score_awarded: scoreAwarded,
       answer: showAnswer ? puzzle.answer : undefined,
-      streak: streakInfo.currentStreak,
+      streak: streakInfo?.currentStreak ?? 0,
       stats: statsInfo,
       message: isCorrect ? "Correct!" : "Incorrect answer"
+    }, {
+      headers: { "Cache-Control": "private, no-store" }
     });
-  } catch (error: any) {
-    console.error("Failed to process guess:", error);
+  } catch (error) {
+    console.error("Failed to process guess:", {
+      name: error instanceof Error ? error.name : "UnknownError"
+    });
     return NextResponse.json(
       { error: "Internal Server Error" },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "private, no-store" } }
     );
   }
 }
