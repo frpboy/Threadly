@@ -5,9 +5,19 @@ import { createProgressSnapshot } from "@/services/progressService.mjs";
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    const puzzleId = payload?.puzzle_id;
-    const guestId = payload?.guest_id;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
+    }
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
+    }
+
+    const payload = body as Record<string, unknown>;
+    const puzzleId = payload.puzzle_id;
+    const guestId = payload.guest_id;
 
     if (typeof puzzleId !== "string" || !puzzleId.trim() ||
         (guestId !== undefined && guestId !== null &&
