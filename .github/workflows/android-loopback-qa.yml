@@ -34,11 +34,12 @@ jobs:
           gradle-version: '8.14.3'
           cache-disabled: true
       - name: Compile synthetic QA and existing unit tests, inspect merged manifests
+        timeout-minutes: 12
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
-          gradle -p android -PthreadlyTestBuildType=qa testQaUnitTest assembleQa assembleQaAndroidTest processReleaseMainManifest --no-daemon
-          gradle -p android -PthreadlyTestBuildType=qa dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
+          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
+          timeout --kill-after=10s 90s gradle -p android -PthreadlyTestBuildType=qa :app:dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           cat "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           grep -F 'androidx.compose.ui:ui-test-manifest:' "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           python3 - <<'PY'
@@ -74,6 +75,7 @@ jobs:
           domains=ds[0].findall('domain'); assert len(domains)==1 and domains[0].text=='127.0.0.1' and domains[0].get('includeSubdomains')=='false'
           PY
       - name: Boot API36 and enforce mandatory QA-app IPv4 and IPv6 fence
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64"
@@ -81,16 +83,23 @@ jobs:
           export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-android" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-android/avd"
           mkdir -p "$ANDROID_AVD_HOME"
           test -e /dev/kvm; sudo chmod a+rw /dev/kvm
-          sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
-          echo no | avdmanager create avd -n loopback -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/loopback.avd" --force
-          emulator -avd loopback -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
-          timeout 180 adb wait-for-device
-          for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ] && ready=1 && break; sleep 2; done
+          timeout --kill-after=10s 300s sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | timeout --kill-after=10s 60s avdmanager create avd -n loopback -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/loopback.avd" --force
+          emulator -avd loopback -port 5554 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
+          export ANDROID_SERIAL=emulator-5554
+          # Every adb invocation is bounded, including polls, restart and firewall calls.
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          timeout --kill-after=5s 180s adb -s "$ANDROID_SERIAL" wait-for-device
+          deadline=$((SECONDS + 240))
+          while (( SECONDS < deadline )); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
           test "${ready:-0}" = 1
-          adb root; adb wait-for-device
+          adb root; timeout --kill-after=5s 60s adb -s "$ANDROID_SERIAL" wait-for-device
           adb shell id -u | tr -d '\r' | grep -Fx 0
           # Install before fencing so the exact target UID is known. Instrumentation runs in this target UID.
-          adb install -r android/app/build/outputs/apk/qa/app-qa.apk
+          timeout --kill-after=5s 120s adb -s "$ANDROID_SERIAL" install -r android/app/build/outputs/apk/qa/app-qa.apk
           mkdir -p loopback-evidence
           adb shell cmd package list packages -U com.frpboy.threadly.qa > loopback-evidence/package-uid.txt
           cat loopback-evidence/package-uid.txt
@@ -113,20 +122,18 @@ jobs:
           done
           # No skips, no ignored firewall failures, no production/DB/secret supplied.
       - name: Run all QA instrumentation and require exact discovery counts
+        timeout-minutes: 11
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
-          gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" connectedQaAndroidTest --no-daemon
+          export ANDROID_SERIAL=emulator-5554
+          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" :app:connectedQaAndroidTest --no-daemon
       - name: Collect named failure or success pixels, then destroy emulator
         if: always()
+        timeout-minutes: 2
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
-          mkdir -p loopback-evidence
-          for name in loopback-resume loopback-solved loopback-exhausted; do
-            adb pull "/data/local/tmp/$name.png" "loopback-evidence/$name.png" || echo "Named capture unavailable: $name"
-          done
-          adb logcat -d -b crash > loopback-evidence/crash.txt 2>&1 || true
-          adb emu kill || true
+          python3 android/qa/collect_device_evidence.py
       - name: Require exact test discovery and all named captures
         if: success()
         run: |
@@ -151,12 +158,14 @@ jobs:
             test -s "loopback-evidence/$name.png"
           done
       - name: Bound evidence storage before upload
+        timeout-minutes: 1
         id: evidence_bound
         if: always()
         run: |
           set -euo pipefail
           python3 android/qa/stage_evidence.py
       - uses: actions/upload-artifact@v4
+        timeout-minutes: 2
         if: always() && steps.evidence_bound.outcome == 'success'
         with:
           name: threadly-synthetic-loopback-evidence
