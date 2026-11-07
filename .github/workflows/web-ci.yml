@@ -1,0 +1,49 @@
+name: Threadly web validation
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/web-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - ".github/workflows/web-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: threadly-web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web typecheck, progress tests and build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Test server-authoritative progress mapping
+        working-directory: apps/web
+        run: node --experimental-strip-types --test tests/progress-service.test.mjs
+
+      - name: Build Next.js application
+        working-directory: apps/web
+        env:
+          DATABASE_URL: "postgresql://ci:ci@127.0.0.1:5432/threadly_ci"
+          AUTH_SECRET: "threadly-ci-placeholder-only"
+        run: npm run build
