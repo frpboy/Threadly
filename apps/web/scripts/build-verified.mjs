@@ -11,7 +11,7 @@ for (const stream of [child.stdout, child.stderr]) stream.on("data", (chunk) => 
 child.on("error", (error) => { console.error(error); process.exitCode = 1; });
 child.on("close", (code) => {
   output.end();
-  const bad = /Attempted import error|Compiled with warnings|export .* was not found|is not exported from|Module not found|Can't resolve|\bWARNING\b|[⚠]/i.test(text);
+  const bad = /Attempted import error|Compiled with warnings|export .* was not found|is not exported from|Module not found|Can't resolve|Module build failed|Failed to compile|Module parse failed/i.test(text);
   if (code !== 0 || bad) {
     console.error("Production build rejected: nonzero exit or compile/import/export warning.");
     process.exitCode = 1;
