@@ -1,0 +1,147 @@
+name: Threadly synthetic native HTTP loopback QA
+on:
+  push:
+    branches: ['fix/android-progress-api-20261107']
+    paths: ['android/**', '.github/workflows/android-loopback-qa.yml']
+permissions:
+  contents: read
+concurrency:
+  group: threadly-loopback-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  synthetic-loopback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Record exact source and assert release isolation
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD HEAD^{tree}
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
+          test "$(git rev-parse HEAD:apps/web)" = "$(git rev-parse 5f496a606499b8000d24e7bea446c6b26a1fb57b:apps/web)"
+          grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
+          grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
+          grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle
+          test -z "${THREADLY_KEYSTORE_PATH:-}"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: Compile synthetic QA and existing unit tests, inspect merged manifests
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          gradle -p android -PthreadlyTestBuildType=qa testQaUnitTest assembleQa assembleQaAndroidTest processReleaseMainManifest --no-daemon
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as E
+          A='{http://schemas.android.com/apk/res/android}'
+          for variant in ['qa','release']:
+              paths=glob.glob('android/app/build/intermediates/merged_manifests/'+variant+'/**/AndroidManifest.xml',recursive=True)
+              if not paths: paths=glob.glob('android/app/build/intermediates/merged_manifest/'+variant+'/**/AndroidManifest.xml',recursive=True)
+              assert paths, 'missing merged manifest '+variant
+              for p in paths:
+                  app=E.parse(p).getroot().find('application')
+                  assert app.get(A+'usesCleartextTraffic')=='false'
+                  if variant=='qa': assert app.get(A+'networkSecurityConfig')=='@xml/qa_network_security_config'
+                  else: assert app.get(A+'networkSecurityConfig') is None
+          root=E.parse('android/app/src/qa/res/xml/qa_network_security_config.xml').getroot()
+          assert root.find('base-config').get('cleartextTrafficPermitted')=='false'
+          ds=root.findall('domain-config'); assert len(ds)==1
+          assert ds[0].get('cleartextTrafficPermitted')=='true'
+          domains=ds[0].findall('domain'); assert len(domains)==1 and domains[0].text=='127.0.0.1' and domains[0].get('includeSubdomains')=='false'
+          PY
+      - name: Boot API36 and enforce mandatory QA-app IPv4 and IPv6 fence
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-android" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | avdmanager create avd -n loopback -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/loopback.avd" --force
+          emulator -avd loopback -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
+          timeout 180 adb wait-for-device
+          for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ] && ready=1 && break; sleep 2; done
+          test "${ready:-0}" = 1
+          adb root; adb wait-for-device
+          adb shell id -u | tr -d '\r' | grep -Fx 0
+          # Install before fencing so the exact target UID is known. Instrumentation runs in this target UID.
+          adb install -r android/app/build/outputs/apk/qa/app-qa.apk
+          QA_UID=$(adb shell dumpsys package com.frpboy.threadly.qa | tr -d '\r' | sed -n 's/^ *userId=\([0-9][0-9]*\).*$/\1/p' | head -1)
+          [[ "$QA_UID" =~ ^[0-9]+$ ]] && test "$QA_UID" -ge 10000
+          echo "THREADLY_QA_UID=$QA_UID" >> "$GITHUB_ENV"
+          # Restrict only the target application UID, not adbd/root control traffic.
+          # No established-connection exemption lets the app escape using an existing socket.
+          for bin in iptables ip6tables; do
+            adb shell "$bin -N THREADLY_QA_EGRESS"
+            adb shell "$bin -A THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -A THREADLY_QA_EGRESS -j REJECT"
+            adb shell "$bin -I OUTPUT 1 -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C OUTPUT -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -C THREADLY_QA_EGRESS -j REJECT"
+          done
+          # No skips, no ignored firewall failures, no production/DB/secret supplied.
+      - name: Run all QA instrumentation and require exact discovery counts
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
+          gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" connectedQaAndroidTest --no-daemon
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as E
+          units=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
+          assert units, 'missing unit XML'
+          unitcases=[c for p in units for c in E.parse(p).getroot().iter('testcase')]
+          assert len(unitcases)==21, 'unexpected unit discovery '+str(len(unitcases))
+          assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in unitcases)
+          paths=glob.glob('android/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
+          assert paths, 'missing instrumentation XML'
+          cases=[c for p in paths for c in E.parse(p).getroot().iter('testcase')]
+          qa=[c for c in cases if c.get('classname','').endswith('LoopbackHttpUiTest')]
+          old=[c for c in cases if c.get('classname','').endswith('GameScreenTest')]
+          assert len(qa)==5 and len(old)==7 and len(cases)==12, [(c.get('classname'),c.get('name')) for c in cases]
+          assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in cases)
+          print('PASS exact instrumentation discovery: 5 real-HTTP loopback + 7 existing fake-API UI, zero skip/failure/error')
+          PY
+          mkdir -p loopback-evidence
+          for name in loopback-resume loopback-solved loopback-exhausted; do
+            adb pull "/data/local/tmp/$name.png" "loopback-evidence/$name.png"
+          done
+      - name: Destroy emulator and collect bounded diagnostics
+        if: always()
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          mkdir -p loopback-evidence
+          adb logcat -d -b crash > loopback-evidence/crash.txt 2>&1 || true
+          adb emu kill || true
+      - name: Bound evidence storage before upload
+        id: evidence_bound
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          from pathlib import Path
+          roots=[Path('loopback-evidence'),Path('android/app/build/outputs/androidTest-results'),Path('android/app/build/test-results/testQaUnitTest')]
+          files=[p for root in roots if root.exists() for p in root.rglob('*') if p.is_file()]
+          assert files, 'missing evidence'
+          assert all(p.suffix in ['.png','.txt','.xml'] for p in files), 'unexpected evidence type'
+          total=sum(p.stat().st_size for p in files)
+          assert total <= 25*1024*1024, 'evidence exceeds 25MiB cap'
+          print('Evidence bytes:',total)
+          PY2
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.evidence_bound.outcome == 'success'
+        with:
+          name: threadly-synthetic-loopback-evidence
+          path: |
+            loopback-evidence
+            android/app/build/outputs/androidTest-results
+            android/app/build/test-results/testQaUnitTest
+          if-no-files-found: error
+          retention-days: 3

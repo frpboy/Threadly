@@ -1,0 +1,69 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
+android {
+    namespace 'app.threadly.game'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.frpboy.threadly'   // permanent once uploaded to Play
+        minSdk 24
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        targetSdk 36
+        versionCode 1
+        versionName '0.2.0'
+        buildConfigField 'String', 'API_BASE', '"https://threadly-ruddy.vercel.app"'
+    }
+    buildFeatures { compose true; buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = '17' }
+    // Release signing: only active when THREADLY_KEYSTORE_PATH etc. are set in the environment.
+    // No keys or passwords live in the repo.
+    signingConfigs {
+        release {
+            def ks = System.getenv('THREADLY_KEYSTORE_PATH')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('THREADLY_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('THREADLY_KEY_ALIAS')
+                keyPassword System.getenv('THREADLY_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        qa {
+            initWith debug
+            applicationIdSuffix '.qa'
+            versionNameSuffix '-loopback-qa'
+            matchingFallbacks = ['debug']
+            buildConfigField 'String', 'API_BASE', '"http://127.0.0.1:8765"'
+        }
+        release {
+            minifyEnabled false
+            if (System.getenv('THREADLY_KEYSTORE_PATH')) signingConfig signingConfigs.release
+        }
+    }
+    testBuildType providers.gradleProperty("threadlyTestBuildType").orElse("debug").get()
+    testOptions { unitTests.returnDefaultValues = true }
+}
+dependencies {
+    def bom = platform('androidx.compose:compose-bom:2025.09.00')
+    implementation bom
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.9.4'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    androidTestImplementation bom
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}
