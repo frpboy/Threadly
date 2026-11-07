@@ -8,6 +8,9 @@ interface Clue {
   text: string;
 }
 
+/**
+ * Render the daily puzzle experience, including its game controls and navigation.
+ */
 export default function Home() {
   const [puzzleId, setPuzzleId] = useState("");
   const [puzzleTitle, setPuzzleTitle] = useState("Loading Puzzle...");
@@ -71,6 +74,7 @@ export default function Home() {
     }
   }, []);
 
+  /** Toggle the active theme and persist the preference for the next visit. */
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
@@ -78,6 +82,7 @@ export default function Home() {
     localStorage.setItem("threadly_theme", newTheme);
   };
 
+  /** Submit a guess, update the game state, and request the next clue when needed. */
   const handleGuessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guessText.trim() || isGameOver || !puzzleId || isSubmitting) return;
@@ -145,6 +150,7 @@ export default function Home() {
     }
   };
 
+  /** Copy a compact result summary to the clipboard for sharing. */
   const handleShare = () => {
     const grid = Array.from({ length: 5 }, (_, i) => 
       i < cluesRevealed ? (isCorrect && i === cluesRevealed - 1 ? "🟩" : "⬛") : "⬜"
@@ -157,6 +163,7 @@ export default function Home() {
     setTimeout(() => setShowShareNotification(false), 2000);
   };
 
+  /** Reset the local play state to the first clue without changing the puzzle. */
   const resetGame = () => {
     setCluesRevealed(1);
     if (systemClues.length > 0) {
@@ -191,7 +198,7 @@ export default function Home() {
           <button 
             onClick={toggleTheme}
             aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             title="Toggle Theme"
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -200,7 +207,7 @@ export default function Home() {
           <Link
             href="/archive"
             aria-label="Puzzle Archive"
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             title="Archive"
           >
             📚
@@ -210,7 +217,7 @@ export default function Home() {
             onClick={() => setShowHowTo(!showHowTo)}
             aria-label="How to Play instructions"
             aria-expanded={showHowTo}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60"
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             title="How to Play"
           >
             ?
@@ -366,7 +373,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={isSubmitting || !guessText.trim()}
-              className="py-4 flex items-center justify-center gap-2 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF4500]/60 transition-all text-sm uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="py-4 flex items-center justify-center gap-2 bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-foreground font-bold rounded-xl hover:text-[#FF4500] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black transition-all text-sm uppercase tracking-wider cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
                 <>
