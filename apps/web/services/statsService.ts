@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { DbClient } from "@/lib/dbClient";
 import { Prisma } from "@prisma/client";
 
 export interface StatsInfo {
@@ -11,11 +12,12 @@ export async function updatePlayerStats(
   userId: string | null,
   guestId: string | null,
   isCorrect: boolean,
-  cluesRevealed: number
+  cluesRevealed: number,
+  client: DbClient = db
 ): Promise<StatsInfo> {
   const filter = userId ? { userId } : { guestId };
 
-  let stats = await db.stats.findFirst({
+  let stats = await client.stats.findFirst({
     where: filter
   });
 
@@ -30,7 +32,7 @@ export async function updatePlayerStats(
     if (userId) data.userId = userId;
     else if (guestId) data.guestId = guestId;
 
-    const newStats = await db.stats.create({
+    const newStats = await client.stats.create({
       data
     });
 
@@ -49,7 +51,7 @@ export async function updatePlayerStats(
     newAverageClues = ((Number(stats.averageClues) * stats.gamesWon) + cluesRevealed) / newGamesWon;
   }
 
-  const updatedStats = await db.stats.update({
+  const updatedStats = await client.stats.update({
     where: { id: stats.id },
     data: {
       gamesPlayed: newGamesPlayed,

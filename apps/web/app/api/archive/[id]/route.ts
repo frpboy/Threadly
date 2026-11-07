@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -19,7 +20,7 @@ export async function GET(
       }
     });
 
-    if (!puzzle) {
+    if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
       return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
     }
 
