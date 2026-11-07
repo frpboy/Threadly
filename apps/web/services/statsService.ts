@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
+import type { DbClient } from "@/lib/dbClient";
 import { Prisma } from "@prisma/client";
-
-type StatsDatabase = Pick<typeof db, "stats">;
 
 export interface StatsInfo {
   gamesPlayed: number;
@@ -14,7 +13,7 @@ export async function updatePlayerStats(
   guestId: string | null,
   isCorrect: boolean,
   cluesRevealed: number,
-  client: StatsDatabase = db
+  client: DbClient = db
 ): Promise<StatsInfo> {
   const filter = userId ? { userId } : { guestId };
 
@@ -24,13 +23,14 @@ export async function updatePlayerStats(
 
   if (!stats) {
     // Create new stats record
-    const data = {
+    const data: any = {
       gamesPlayed: 1,
       gamesWon: isCorrect ? 1 : 0,
       averageClues: isCorrect ? new Prisma.Decimal(cluesRevealed) : new Prisma.Decimal(0),
-      updatedAt: new Date(),
-      ...(userId ? { userId } : { guestId: guestId ?? undefined })
+      updatedAt: new Date()
     };
+    if (userId) data.userId = userId;
+    else if (guestId) data.guestId = guestId;
 
     const newStats = await client.stats.create({
       data

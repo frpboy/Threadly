@@ -1,5 +1,6 @@
 "use client";
 
+import { progressToUiState, shouldResync } from "@/lib/progressUi";
 import React, { useState, useEffect } from "react";
 
 interface Clue {
@@ -56,6 +57,7 @@ export default function Home() {
         setSystemClues(data.clues || []);
         setTotalClues(data.total_clues || 5);
         setLoading(false);
+        resumeFromServer(data.puzzle_id, gId as string);
       })
       .catch((err) => {
         console.error(err);
@@ -69,6 +71,28 @@ export default function Home() {
       setStreak(parseInt(savedStreak, 10));
     }
   }, []);
+
+  // Restore this player's progress from the server (reload, replay, or another device with the same guest id).
+  const resumeFromServer = async (pid: string, gid: string) => {
+    try {
+      const res = await fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ puzzle_id: pid, guest_id: gid }),
+      });
+      if (!res.ok) return;
+      const ui = progressToUiState(await res.json());
+      setSystemClues(ui.clues);
+      setCluesRevealed(ui.cluesRevealed);
+      setGuesses(ui.guesses);
+      setIsGameOver(ui.isGameOver);
+      setIsCorrect(ui.isCorrect);
+      setScore(ui.score);
+      setCorrectAnswer(ui.correctAnswer);
+    } catch (e) {
+      console.error("Could not restore progress", e);
+    }
+  };
 
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
@@ -89,10 +113,15 @@ export default function Home() {
         body: JSON.stringify({
           puzzle_id: puzzleId,
           guess: guessText,
-          clues_revealed: cluesRevealed,
           guest_id: guestId,
         }),
       });
+
+      if (shouldResync(res.status)) {
+        // Server state differs from this screen (already solved, out of guesses, or a duplicate request).
+        await resumeFromServer(puzzleId, guestId);
+        return;
+      }
 
       const result = await res.json();
 
@@ -208,7 +237,7 @@ export default function Home() {
           
           {/* Neumorphic Streak Counter */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background shadow-neumorphic-button border border-border-subtle">
-            <span className="animate-pulse">🔥</span>
+            <svg className="animate-pulse" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ verticalAlign: "-2px" }}><path d="M12 2c1 3-1 4.5-2.5 6.5C8 10.5 7 12 7 14.5A5 5 0 0 0 12 20a5 5 0 0 0 5-5c0-2-1-3.5-2-4.5.2 1.5-.5 2.5-1.5 3 .8-3-.3-7.5-1.5-11.5z"/></svg>
             <span className="font-semibold text-xs text-foreground/80">{streak}d</span>
           </div>
         </div>
@@ -299,7 +328,7 @@ export default function Home() {
             {isGameOver && (
               <div className="flex flex-col items-center gap-4 py-4 border-t border-border-subtle animate-[fadeIn_0.3s_ease-out]">
                 <h3 className="text-lg font-bold">
-                  {isCorrect ? "🎉 Correct Answer!" : "💀 Game Over!"}
+                  {isCorrect ? "Correct Answer!" : "Game Over!"}
                 </h3>
                 {correctAnswer && (
                   <p className="text-sm text-foreground/60">
@@ -395,7 +424,7 @@ export default function Home() {
           aria-live="polite"
           className="fixed bottom-10 px-5 py-3 bg-[#46D160] text-black font-bold text-xs rounded-xl shadow-lg animate-bounce"
         >
-          📋 Score copied to clipboard!
+          Score copied to clipboard!
         </div>
       )}
 

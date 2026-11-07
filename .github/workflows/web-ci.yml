@@ -4,11 +4,15 @@ on:
   pull_request:
     paths:
       - "apps/web/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/web-ci.yml"
   push:
     branches: [main]
     paths:
       - "apps/web/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/web-ci.yml"
 
 permissions:
@@ -20,7 +24,7 @@ concurrency:
 
 jobs:
   web:
-    name: Web typecheck, progress tests and build
+    name: Web tests, typecheck and production build
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -38,11 +42,17 @@ jobs:
       - name: Install web dependencies
         run: npm ci --workspace apps/web
 
-      - name: Test server-authoritative progress mapping
-        run: node --test apps/web/tests/progress-service.test.mjs
+      - name: Test attempt transactions, route guards and progress
+        run: |
+          npm test --workspace apps/web
+          node --test apps/web/tests/progress-service.test.mjs
 
       - name: Build Next.js application
         env:
           DATABASE_URL: "postgresql://ci:ci@127.0.0.1:5432/threadly_ci"
           AUTH_SECRET: "threadly-ci-placeholder-only"
-        run: npm run build --workspace apps/web
+        working-directory: apps/web
+        run: node scripts/build-verified.mjs
+
+      - name: Validate published progress through the production bundle
+        run: node apps/web/scripts/built-progress-smoke.mjs

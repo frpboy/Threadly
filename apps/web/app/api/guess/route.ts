@@ -1,216 +1,111 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { auth } from "@/auth";
 import { checkAnswer } from "@/services/answerService";
 import { calculateScore } from "@/services/scoringService";
-import { updatePlayerStreak } from "@/services/streakService";
-import { updatePlayerStats } from "@/services/statsService";
 import { recalculatePuzzleDifficulty } from "@/services/difficultyService";
+import { MAX_CLUES } from "@/services/attemptService";
+import { submitGuess } from "@/services/guessTransaction";
+import { runInPrismaTransaction } from "@/services/prismaAttemptStore";
+import { validPuzzleId, validGuess, validGuestId } from "@/services/requestValidation";
+
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
+}
 
 export async function POST(req: NextRequest) {
   try {
+    // clues_revealed from the client is ignored: the server derives it from its own guess log.
     let body: unknown;
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
+      return privateJson({ error: "Request body must be valid JSON" }, { status: 400 });
     }
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
-      return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
+      return privateJson({ error: "Request body must be a JSON object" }, { status: 400 });
     }
+    const { puzzle_id, guess, guest_id } = body as Record<string, unknown>;
 
-    const payload = body as Record<string, unknown>;
-    const puzzleId = payload.puzzle_id;
-    const guess = payload.guess;
-    const guestId = payload.guest_id;
-
-    if (typeof puzzleId !== "string" || !puzzleId.trim() ||
-        typeof guess !== "string" || !guess.trim() || guess.length > 200 ||
-        (guestId !== undefined && guestId !== null &&
-          (typeof guestId !== "string" || guestId.length > 128))) {
-      return NextResponse.json(
-        { error: "puzzle_id and a valid guess are required" },
+    if (!validPuzzleId(puzzle_id) || !validGuess(guess)) {
+      return privateJson(
+        { error: "A valid puzzle_id and a nonempty guess of at most 200 characters are required" },
         { status: 400 }
       );
     }
 
-    const session = await auth();
-    const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-    const playerGuestId = typeof guestId === "string" ? guestId : null;
-    if (!userId && playerGuestId === null) {
-      return NextResponse.json(
-        { error: "Authentication or guest_id is required" },
-        { status: 401 }
-      );
-    }
-
     const puzzle = await db.puzzle.findUnique({
-      where: { id: puzzleId },
-      include: {
-        clues: {
-          select: { clueOrder: true },
-          orderBy: { clueOrder: "asc" }
-        }
-      }
+      where: { id: puzzle_id }
     });
 
-    if (!puzzle) {
-      return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
+    if (!puzzle || puzzle.status !== "published") {
+      return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
 
-    const totalClues = puzzle.clues.length;
-    if (totalClues === 0) {
-      return NextResponse.json({ error: "Puzzle has no clues" }, { status: 409 });
+    // Get current session for logged in user
+    const session = await auth();
+    const userId = (session?.user as any)?.id || null;
+
+    if (!userId && !validGuestId(guest_id)) {
+      return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
     }
+    const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;
 
-    const identityKey = userId ? `user:${userId}` : `guest:${playerGuestId}`;
-    const playerFilter = userId ? { userId } : { guestId: playerGuestId! };
+    const { isCorrect, similarity } = checkAnswer(guess.trim(), puzzle.answer);
 
-    // PostgreSQL transaction-scoped advisory lock serializes guesses for this
-    // player + puzzle. The read, validation, insert and completion side effects
-    // share the same transaction, so retries/double-clicks cannot finish twice.
-    const attempt = await db.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${identityKey}), hashtext(${puzzle.id}))`;
-
-      const priorGuesses = await tx.guess.findMany({
-        where: { puzzleId: puzzle.id, ...playerFilter },
-        select: { isCorrect: true },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }]
-      });
-
-      if (priorGuesses.some((entry) => entry.isCorrect)) {
-        return { kind: "blocked" as const, state: "solved" as const };
-      }
-      if (priorGuesses.length >= totalClues) {
-        return { kind: "blocked" as const, state: "exhausted" as const };
-      }
-
-      // Never accept a client-provided clue counter for score or answer reveal.
-      const clueNumber = Math.min(priorGuesses.length + 1, totalClues);
-      const normalizedGuess = guess.trim();
-      const { isCorrect, similarity } = checkAnswer(normalizedGuess, puzzle.answer);
-      const scoreAwarded = isCorrect ? calculateScore(clueNumber) : 0;
-
-      await tx.guess.create({
-        data: {
-          userId,
-          guestId: userId ? null : playerGuestId,
-          puzzleId: puzzle.id,
-          guessText: normalizedGuess,
-          isCorrect,
-          clueNumber
-        }
-      });
-
-      const gameFinished = isCorrect || clueNumber >= totalClues;
-      let streakInfo = null;
-      let statsInfo = null;
-
-      if (gameFinished) {
-        // Keep all completion effects under the same lock and transaction.
-        streakInfo = await updatePlayerStreak(
-          userId, userId ? null : playerGuestId, isCorrect, tx
-        );
-        statsInfo = await updatePlayerStats(
-          userId, userId ? null : playerGuestId, isCorrect, clueNumber, tx
-        );
-      }
-
-      return {
-        kind: "created" as const,
-        clueNumber,
-        isCorrect,
-        similarity,
-        scoreAwarded,
-        gameFinished,
-        streak: streakInfo?.currentStreak ?? 0,
-        stats: statsInfo
-      };
-    }, { maxWait: 5_000, timeout: 15_000 });
-
-    if (attempt.kind === "blocked") {
-      return NextResponse.json(
-        { error: attempt.state === "solved" ? "GAME_ALREADY_FINISHED" : "GAME_EXHAUSTED" },
-        { status: 409, headers: { "Cache-Control": "private, no-store" } }
-      );
-    }
-
-    if (attempt.isCorrect && attempt.scoreAwarded > 0) {
-      try {
-        const today = new Date();
-        let season = await db.leaderboardSeason.findFirst({
-          where: {
-            startDate: { lte: today },
-            endDate: { gte: today }
-          }
-        });
-        if (!season) {
-          const endDate = new Date();
-          endDate.setDate(endDate.getDate() + 30);
-          season = await db.leaderboardSeason.create({
-            data: {
-              name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
-              startDate: today,
-              endDate
-            }
-          });
-        }
-
-        // A successful attempt is unique for this player/puzzle because the
-        // transaction above rejects all later guesses after the winning one.
-        const userFilter = userId ? { userId } : { guestId: playerGuestId! };
-        const existingEntry = await db.leaderboardEntry.findFirst({
-          where: { seasonId: season.id, ...userFilter }
-        });
-
-        if (existingEntry) {
-          await db.leaderboardEntry.update({
-            where: { id: existingEntry.id },
-            data: { score: existingEntry.score + attempt.scoreAwarded }
-          });
-        } else {
-          const data = {
-            seasonId: season.id,
-            score: attempt.scoreAwarded,
-            updatedAt: new Date(),
-            ...(userId ? { userId } : { guestId: playerGuestId! })
-          };
-          await db.leaderboardEntry.create({ data });
-        }
-      } catch (leaderboardErr) {
-        // Leaderboard is ancillary and must not roll back a saved, completed game.
-        console.error("Failed to update leaderboard score:", {
-          name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
-        });
-      }
-    }
-
-    recalculatePuzzleDifficulty(puzzle.id).catch((error) => {
-      console.error("Difficulty engine failed:", {
-        name: error instanceof Error ? error.name : "UnknownError"
-      });
+    const { outcome, award } = await submitGuess(runInPrismaTransaction, {
+      puzzleId: puzzle.id,
+      playerKey,
+      guessText: guess.trim(),
+      isCorrect,
+      scoreFor: calculateScore,
     });
 
-    const showAnswer = attempt.isCorrect || attempt.clueNumber >= totalClues;
-    return NextResponse.json({
-      correct: attempt.isCorrect,
-      similarity_score: Number(attempt.similarity.toFixed(2)),
-      clues_used: attempt.clueNumber,
-      score_awarded: attempt.scoreAwarded,
+    if (outcome.status === "replay") {
+      return privateJson({ error: "Duplicate or concurrent guess" }, { status: 409 });
+    }
+    if (outcome.status === "already_solved") {
+      return privateJson({
+        correct: true, already_solved: true, clues_used: outcome.cluesUsed,
+        score_awarded: 0, answer: puzzle.answer, message: "Already solved"
+      }, { status: 409 });
+    }
+    if (outcome.status === "exhausted") {
+      return privateJson({
+        correct: false, exhausted: true, answer: puzzle.answer, message: "No guesses left"
+      }, { status: 409 });
+    }
+
+    const clues_revealed = outcome.cluesUsed;
+    const scoreAwarded = outcome.scoreAwarded;
+    const { streak: streakInfo, stats: statsInfo } = (award ?? {}) as {
+      streak?: { currentStreak: number }; stats?: unknown;
+    };
+
+    // Run dynamic difficulty assessment asynchronously in background
+    recalculatePuzzleDifficulty(puzzle.id).catch(err => {
+      console.error("Difficulty engine failed:", err);
+    });
+
+    const showAnswer = isCorrect || clues_revealed >= MAX_CLUES;
+
+    return privateJson({
+      correct: isCorrect,
+      similarity_score: parseFloat(similarity.toFixed(2)),
+      clues_used: clues_revealed,
+      score_awarded: scoreAwarded,
       answer: showAnswer ? puzzle.answer : undefined,
-      streak: attempt.streak,
-      stats: attempt.stats,
-      message: attempt.isCorrect ? "Correct!" : "Incorrect answer"
-    }, {
-      headers: { "Cache-Control": "private, no-store" }
+      streak: streakInfo?.currentStreak ?? 0,
+      stats: statsInfo,
+      message: isCorrect ? "Correct!" : "Incorrect answer"
     });
-  } catch (error) {
-    console.error("Failed to process guess:", {
-      name: error instanceof Error ? error.name : "UnknownError"
-    });
-    return NextResponse.json(
+  } catch (error: any) {
+    console.error("Failed to process guess:", error);
+    return privateJson(
       { error: "Internal Server Error" },
-      { status: 500, headers: { "Cache-Control": "private, no-store" } }
+      { status: 500 }
     );
   }
 }

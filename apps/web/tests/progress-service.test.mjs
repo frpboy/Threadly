@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createProgressSnapshot } from "../services/progressService.mjs";
+import { createProgressSnapshot } from "../services/progressSnapshot.mjs";
 
 const clues = [
   { clueOrder: 1, clueText: "Clue one" },

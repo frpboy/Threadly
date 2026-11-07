@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
-
-type StreakDatabase = Pick<typeof db, "streak">;
+import type { DbClient } from "@/lib/dbClient";
 
 export interface StreakInfo {
   currentStreak: number;
@@ -11,7 +10,7 @@ export async function updatePlayerStreak(
   userId: string | null,
   guestId: string | null,
   isCorrect: boolean,
-  client: StreakDatabase = db
+  client: DbClient = db
 ): Promise<StreakInfo> {
   if (!isCorrect) {
     // Streaks only update on successful connections/solves
@@ -33,12 +32,13 @@ export async function updatePlayerStreak(
 
   if (!streak) {
     // Create new streak record
-    const data = {
+    const data: any = {
       currentStreak: 1,
       bestStreak: 1,
-      updatedAt: new Date(),
-      ...(userId ? { userId } : { guestId: guestId ?? undefined })
+      updatedAt: new Date()
     };
+    if (userId) data.userId = userId;
+    else if (guestId) data.guestId = guestId;
 
     const newStreak = await client.streak.create({
       data
@@ -86,7 +86,7 @@ export async function updatePlayerStreak(
   };
 }
 
-async function getStreakRecord(userId: string | null, guestId: string | null, client: StreakDatabase) {
+async function getStreakRecord(userId: string | null, guestId: string | null, client: DbClient = db) {
   const filter = userId ? { userId } : { guestId: guestId || "none" };
   return await client.streak.findFirst({
     where: filter

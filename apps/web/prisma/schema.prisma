@@ -100,6 +100,9 @@ model Guess {
   id         String   @id @default(uuid())
   userId     String?  @map("user_id")
   guestId    String?  @map("guest_id")
+  // "u:<userId>" or "g:<guestId>". Nullable; unique per (puzzle, player, clue) via a partial index
+  // created by prisma/drafts/guess_player_key.up.sql (Prisma cannot express partial indexes).
+  playerKey  String?  @map("player_key")
   puzzleId   String   @map("puzzle_id")
   guessText  String   @map("guess_text")
   isCorrect  Boolean  @default(false) @map("is_correct")

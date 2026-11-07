@@ -1,77 +1,57 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { createProgressSnapshot } from "@/services/progressService.mjs";
+import { auth } from "@/auth";
+import { calculateScore } from "@/services/scoringService";
+import { buildProgress } from "@/services/progressService";
+import { prismaHistory } from "@/services/prismaAttemptStore";
+import { validPuzzleId, validGuestId } from "@/services/requestValidation";
 
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
+}
+
+// Lets a client resume a puzzle: which clues are unlocked, past guesses, and the result once finished.
+// POST (not GET) so the guest id stays out of URLs and logs. Read-only.
 export async function POST(req: NextRequest) {
   try {
     let body: unknown;
     try {
       body = await req.json();
     } catch {
-      return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
+      return privateJson({ error: "Request body must be valid JSON" }, { status: 400 });
     }
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
-      return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
+      return privateJson({ error: "Request body must be a JSON object" }, { status: 400 });
     }
-
-    const payload = body as Record<string, unknown>;
-    const puzzleId = payload.puzzle_id;
-    const guestId = payload.guest_id;
-
-    if (typeof puzzleId !== "string" || !puzzleId.trim() ||
-        (guestId !== undefined && guestId !== null &&
-          (typeof guestId !== "string" || guestId.length > 128))) {
-      return NextResponse.json(
-        { error: "puzzle_id and a valid guest_id are required" },
-        { status: 400 }
-      );
+    const { puzzle_id, guest_id } = body as Record<string, unknown>;
+    if (!validPuzzleId(puzzle_id)) {
+      return privateJson({ error: "puzzle_id is required" }, { status: 400 });
     }
-
     const session = await auth();
-    const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-    if (!userId && !guestId) {
-      return NextResponse.json(
-        { error: "Authentication or guest_id is required" },
-        { status: 401 }
-      );
+    const userId = (session?.user as any)?.id || null;
+    if (!userId && !validGuestId(guest_id)) {
+      return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
     }
-
     const puzzle = await db.puzzle.findUnique({
-      where: { id: puzzleId },
-      include: {
-        clues: {
-          select: { clueOrder: true, clueText: true },
-          orderBy: { clueOrder: "asc" }
-        }
-      }
+      where: { id: puzzle_id },
+      include: { clues: { orderBy: { clueOrder: "asc" } } },
     });
-
-    if (!puzzle) {
-      return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
+    if (!puzzle || puzzle.status !== "published") {
+      return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
-    if (puzzle.clues.length === 0) {
-      return NextResponse.json({ error: "Puzzle has no clues" }, { status: 409 });
-    }
-
-    const playerFilter = userId ? { userId } : { guestId };
-    const guesses = await db.guess.findMany({
-      where: { puzzleId: puzzle.id, ...playerFilter },
-      select: { guessText: true, isCorrect: true },
-      orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+    const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;
+    const history = await prismaHistory()(puzzle.id, playerKey);
+    const progress = buildProgress({
+      history,
+      clues: puzzle.clues.map((c) => ({ order: c.clueOrder, text: c.clueText })),
+      answer: puzzle.answer,
+      scoreFor: calculateScore,
     });
-
-    const progress = createProgressSnapshot(puzzle.clues, guesses, puzzle.answer);
-    return NextResponse.json(progress, {
-      headers: { "Cache-Control": "private, no-store" }
-    });
+    return privateJson(progress);
   } catch (error) {
-    console.error("Progress POST failed:", {
-      name: error instanceof Error ? error.name : "UnknownError"
-    });
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500, headers: { "Cache-Control": "private, no-store" } }
-    );
+    console.error("Failed to load progress:", error);
+    return privateJson({ error: "Internal Server Error" }, { status: 500 });
   }
 }
