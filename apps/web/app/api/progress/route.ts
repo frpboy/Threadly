@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
 import { calculateScore } from "@/services/scoringService";
-import { buildProgress } from "@/services/progressService";
+import { buildProgress } from "@/services/progressService.ts";
 import { prismaHistory } from "@/services/prismaAttemptStore";
 import { validPuzzleId, validGuestId } from "@/services/requestValidation";
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
       return privateJson({ error: "puzzle_id is required" }, { status: 400 });
     }
     const session = await auth();
-    const userId = (session?.user as any)?.id || null;
+    const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
     if (!userId && !validGuestId(guest_id)) {
       return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
     }
