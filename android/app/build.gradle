@@ -7,7 +7,7 @@ android {
     namespace 'app.threadly.game'
     compileSdk 36
     defaultConfig {
-        applicationId 'app.threadly.game'   // PLACEHOLDER, not final: package id needs owner approval
+        applicationId 'com.frpboy.threadly'   // permanent once uploaded to Play
         minSdk 24
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         targetSdk 36
@@ -18,7 +18,25 @@ android {
     buildFeatures { compose true; buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = '17' }
-    buildTypes { release { minifyEnabled false } }
+    // Release signing: only active when THREADLY_KEYSTORE_PATH etc. are set in the environment.
+    // No keys or passwords live in the repo.
+    signingConfigs {
+        release {
+            def ks = System.getenv('THREADLY_KEYSTORE_PATH')
+            if (ks) {
+                storeFile file(ks)
+                storePassword System.getenv('THREADLY_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('THREADLY_KEY_ALIAS')
+                keyPassword System.getenv('THREADLY_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (System.getenv('THREADLY_KEYSTORE_PATH')) signingConfig signingConfigs.release
+        }
+    }
     testOptions { unitTests.returnDefaultValues = true }
 }
 dependencies {

@@ -41,6 +41,18 @@ jobs:
           adb shell ls -l /data/local/tmp | tee shots/ls.txt
           adb pull /data/local/tmp/shot-resumed.png shots/
           adb pull /data/local/tmp/shot-solved.png shots/
+      - name: Build UNSIGNED release APK (no secrets in CI; signed offline)
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"; export PATH="$JAVA_HOME/bin:$PATH"
+          gradle -p android assembleRelease --no-daemon
+          mkdir -p unsigned
+          cp android/app/build/outputs/apk/release/*.apk unsigned/threadly-release-unsigned.apk
+          sha256sum unsigned/threadly-release-unsigned.apk | tee unsigned/threadly-release-unsigned.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: threadly-release-unsigned-apk
+          path: unsigned
+          if-no-files-found: error
       - name: Checksum the debug APK
         run: |
           mkdir -p apk
