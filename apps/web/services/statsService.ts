@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
+type StatsDatabase = Pick<typeof db, "stats">;
+
 export interface StatsInfo {
   gamesPlayed: number;
   gamesWon: number;
@@ -11,26 +13,26 @@ export async function updatePlayerStats(
   userId: string | null,
   guestId: string | null,
   isCorrect: boolean,
-  cluesRevealed: number
+  cluesRevealed: number,
+  client: StatsDatabase = db
 ): Promise<StatsInfo> {
   const filter = userId ? { userId } : { guestId };
 
-  let stats = await db.stats.findFirst({
+  let stats = await client.stats.findFirst({
     where: filter
   });
 
   if (!stats) {
     // Create new stats record
-    const data: any = {
+    const data = {
       gamesPlayed: 1,
       gamesWon: isCorrect ? 1 : 0,
       averageClues: isCorrect ? new Prisma.Decimal(cluesRevealed) : new Prisma.Decimal(0),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      ...(userId ? { userId } : { guestId: guestId ?? undefined })
     };
-    if (userId) data.userId = userId;
-    else if (guestId) data.guestId = guestId;
 
-    const newStats = await db.stats.create({
+    const newStats = await client.stats.create({
       data
     });
 
@@ -49,7 +51,7 @@ export async function updatePlayerStats(
     newAverageClues = ((Number(stats.averageClues) * stats.gamesWon) + cluesRevealed) / newGamesWon;
   }
 
-  const updatedStats = await db.stats.update({
+  const updatedStats = await client.stats.update({
     where: { id: stats.id },
     data: {
       gamesPlayed: newGamesPlayed,
