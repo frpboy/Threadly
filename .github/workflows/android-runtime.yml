@@ -1,0 +1,45 @@
+name: Threadly Android validation (fake backend only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-and-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned as in Scrobblix example
+        with: { persist-credentials: false }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.14.3' }
+      - name: JVM tests and debug build
+        run: |
+          export JAVA_HOME="$JAVA_HOME_21_X64"; export PATH="$JAVA_HOME/bin:$PATH"
+          gradle testDebugUnitTest assembleDebug lintDebug --no-daemon
+      - name: API36 emulator, Compose tests against a scripted fake API
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME" ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | avdmanager create avd -n t -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/t.avd" --force
+          test -f "$ANDROID_AVD_HOME/t.ini"; emulator -list-avds | grep -Fx t
+          emulator -avd t -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > /tmp/emu.log 2>&1 &
+          trap 'kill $! || true' EXIT
+          timeout 180 adb wait-for-device || { cat /tmp/emu.log; exit 1; }
+          for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ] && b=1 && break; sleep 2; done
+          [ "${b:-0}" = 1 ] || { tail -80 /tmp/emu.log; exit 1; }
+          adb shell screencap -p /sdcard/before.png && adb pull /sdcard/before.png emulator-home.png || true
+          gradle connectedDebugAndroidTest --no-daemon || { find app/build/outputs/androidTest-results -name '*.xml' -exec cat {} \;; adb logcat -d -b crash; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: threadly-android-test-results
+          path: |
+            app/build/reports/androidTests
+            app/build/outputs/androidTest-results
+            emulator-home.png
