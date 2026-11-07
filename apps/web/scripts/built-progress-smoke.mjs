@@ -27,6 +27,14 @@ try{
   if(state==="open")assert.equal("answer" in p,false);else assert.equal(p.answer,"fixture answer");
   console.log(`PASS built valid /api/progress: ${state}, clue2, score${score}, answer boundary and private,no-store`);
  }
+ for(const puzzle_id of ['fixture-short','fixture-duplicate','fixture-gap']) {
+  for(const path of ['progress','guess']) {
+   const r=await fetch(`http://127.0.0.1:${port}/api/${path}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({puzzle_id,guest_id:'fixture-open',guess:'fixture answer'}),signal:AbortSignal.timeout(5000)});
+   assert.equal(r.status,404,`malformed ${puzzle_id} ${path} must fail before history/awards`);
+   assert.equal(r.headers.get('cache-control'),'private, no-store');
+  }
+ }
+ console.log('PASS built malformed short/duplicate/gap: six private404 responses, no history/award access');
  console.log("Actual production bundle module binding verified with test-only Prisma fixture. No live database/OIDC/gameplay claim.");
 }catch(e){console.error(log);throw e;}
 finally{server.kill("SIGTERM");if(server.exitCode===null)await new Promise(r=>server.once("exit",r));}

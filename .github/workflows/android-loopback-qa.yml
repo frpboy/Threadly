@@ -24,7 +24,7 @@ jobs:
           git rev-parse HEAD HEAD^{tree}
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
-          test "$(git rev-parse HEAD:apps/web)" = "$(git rev-parse 5f496a606499b8000d24e7bea446c6b26a1fb57b:apps/web)"
+          test "$(git rev-parse HEAD:apps/web)" = "bd3e62e8df2a88a0f632d8a9a15b19883f79b39b"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
           grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle

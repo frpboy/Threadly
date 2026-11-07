@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "./puzzleContract.ts";
 import { MAX_CLUES, deriveState } from "./attemptService.ts";
 import type { GuessRecord } from "./attemptService.ts";
 
@@ -20,6 +21,9 @@ export function buildProgress(args: {
   scoreFor: (cluesUsed: number) => number;
 }): Progress {
   const { history, answer, scoreFor } = args;
+  if (!validPuzzleContent({ answer, clues: args.clues.map(c => ({ clueOrder: c.order, clueText: c.text })) })) {
+    throw new Error("Invalid published puzzle content");
+  }
   const state = deriveState(history);
   const total = Math.min(MAX_CLUES, args.clues.length);
   const sorted = [...history].sort((a, b) => a.clueNumber - b.clueNumber);

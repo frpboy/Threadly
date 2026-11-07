@@ -8,18 +8,19 @@ import time
 import unittest
 from real_server_gate import guard, ready, stop, ticks
 
-URL = 'postgresql://gate:disposable-local-only@127.0.0.1:5432/threadly_android_gate'
+PASSWORD = 'a' * 48
+URL = 'postgresql://gate:' + PASSWORD + '@127.0.0.1:5432/threadly_android_gate'
 ROOT = Path(__file__).resolve().parents[2]
 
 
 class RealGateTest(unittest.TestCase):
     def test_url_is_exact_local_disposable_database(self):
-        guard({'DATABASE_URL': URL})
+        guard({'DATABASE_URL': URL, 'THREADLY_GATE_PASSWORD': PASSWORD})
         for url in (URL.replace('127.0.0.1','example.org'),URL.replace('threadly_android_gate','production'),
                     URL+'?schema=other',URL+'#other',URL.replace('5432','5433'),URL.replace('gate:','owner:'),''):
-            with self.subTest(url=url),self.assertRaises(ValueError):guard({'DATABASE_URL':url})
+            with self.subTest(url=url),self.assertRaises(ValueError):guard({'DATABASE_URL':url,'THREADLY_GATE_PASSWORD':PASSWORD})
         for key in ('NODE_OPTIONS','NODE_PATH'):
-            with self.assertRaises(ValueError):guard({'DATABASE_URL':URL,key:'preload'})
+            with self.assertRaises(ValueError):guard({'DATABASE_URL':URL,'THREADLY_GATE_PASSWORD':PASSWORD,key:'preload'})
 
     def test_absent_server_is_readiness_timeout_not_success(self):
         start=time.monotonic()
@@ -48,15 +49,18 @@ class RealGateTest(unittest.TestCase):
         synthetic=(ROOT/'.github/workflows/android-loopback-qa.yml').read_text()
         self.assertIn('class=app.threadly.game.RealServerUiTest ',real)
         self.assertIn('class=app.threadly.game.GameScreenTest,app.threadly.game.LoopbackHttpUiTest ',synthetic)
-        self.assertIn("ports: ['127.0.0.1:5432:5432']",real)
-        self.assertIn('postgres:16@sha256:',real)
+        lifecycle=(ROOT/'android/qa/local_postgres.py').read_text()
+        self.assertIn('127.0.0.1:5432:5432',lifecycle)
+        self.assertIn('postgres:16@sha256:',lifecycle)
+        self.assertNotIn('services:',real)
+        self.assertIn('local_postgres.py stop',real)
         self.assertNotIn('secrets.',real);self.assertNotIn('preload',real)
         self.assertIn('reverse tcp:8765 tcp:3189',real)
         self.assertIn('reverse --remove tcp:8765',real)
         self.assertIn('len(cases)==4',real);self.assertIn('len(cases)==12',synthetic)
         self.assertIn("steps.evidence_bound.outcome == 'success'",real)
         db=(ROOT/'android/qa/real_db_gate.cjs').read_text()
-        for token in ('guesses_puzzle_player_clue_uq','database must be empty','gamesPlayed,1','scores[0].score,80','db.guess.count(),5'):
+        for token in ('guesses_puzzle_player_clue_uq','database must be empty','gamesPlayed,1','scores[0].score,80','db.guess.count(),8'):
             self.assertIn(token,db)
         self.assertNotIn('deleteMany',db)
 

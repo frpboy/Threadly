@@ -14,8 +14,11 @@ from urllib.parse import urlparse
 
 def guard(env):
     u = urlparse(env.get('DATABASE_URL', ''))
+    password = env.get('THREADLY_GATE_PASSWORD', '')
+    if len(password) != 48 or any(c not in '0123456789abcdef' for c in password):
+        raise ValueError('missing ephemeral credential')
     if (u.scheme, u.hostname, u.port, u.path, u.username, u.password, u.query, u.fragment) != (
-            'postgresql', '127.0.0.1', 5432, '/threadly_android_gate', 'gate', 'disposable-local-only', '', ''):
+            'postgresql', '127.0.0.1', 5432, '/threadly_android_gate', 'gate', password, '', ''):
         raise ValueError('not the dedicated disposable local database')
     if env.get('NODE_OPTIONS') or env.get('NODE_PATH'):
         raise ValueError('Node preload/alternate module paths forbidden')
@@ -74,13 +77,20 @@ def start(root, state):
     try:
         ready()
         if p.poll() is not None: raise RuntimeError('Next exited after readiness')
-        request = urllib.request.Request('http://127.0.0.1:3189/api/progress', data=b'{"puzzle_id":{}}', headers={'Content-Type': 'application/json'})
-        try:
-            urllib.request.urlopen(request, timeout=3)
-            raise AssertionError('invalid progress request was accepted')
-        except urllib.error.HTTPError as error:
-            assert error.code == 400 and error.headers.get('Cache-Control') == 'private, no-store'
-        print('PASS actual Next readiness, seeded daily, real invalid-request guard, no preload')
+        for kind in ('short', 'duplicate', 'gap'):
+            for route, body in (
+                ('progress', {'puzzle_id': 'malformed-' + kind, 'guest_id': 'malformed-probe'}),
+                ('guess', {'puzzle_id': 'malformed-' + kind, 'guest_id': 'malformed-probe', 'guess': 'sentinel-answer'}),
+                ('clue', {'puzzle_id': 'malformed-' + kind, 'guest_id': 'malformed-probe', 'requested_clue_order': 1})):
+                request = urllib.request.Request('http://127.0.0.1:3189/api/' + route, data=json.dumps(body).encode(), headers={'Content-Type': 'application/json'})
+                try:
+                    urllib.request.urlopen(request, timeout=3)
+                    raise AssertionError('malformed published puzzle accepted')
+                except urllib.error.HTTPError as error:
+                    assert error.code == 404
+                    if route in ('progress', 'guess'):
+                        assert error.headers.get('Cache-Control') == 'private, no-store'
+        print('PASS actual Next readiness, canonical daily and nine malformed-content HTTP rejections, no preload')
     except BaseException:
         stop(state)
         raise

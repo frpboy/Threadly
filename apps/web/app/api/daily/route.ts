@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
 import { getDailyPuzzle } from "@/services/puzzleService";
 
@@ -5,6 +6,8 @@ export async function GET() {
   try {
     const today = new Date();
     const puzzle = await getDailyPuzzle(today);
+
+    if (!validPuzzleContent(puzzle)) return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
 
     // Return puzzle details (spoiler-free: do not return the answer, and only return Clue 1)
     const firstClue = puzzle.clues.find(c => c.clueOrder === 1);

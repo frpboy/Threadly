@@ -13,23 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      DATABASE_URL: postgresql://gate:disposable-local-only@127.0.0.1:5432/threadly_android_gate
-      AUTH_SECRET: disposable-local-auth-only
-      AUTH_TRUST_HOST: 'true'
-      NEXT_TELEMETRY_DISABLED: '1'
       NODE_OPTIONS: ''
       NODE_PATH: ''
-    services:
-      postgres:
-        image: postgres:16@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
-        env:
-          POSTGRES_USER: gate
-          POSTGRES_PASSWORD: disposable-local-only
-          POSTGRES_DB: threadly_android_gate
-        ports: ['127.0.0.1:5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U gate -d threadly_android_gate"
-          --health-interval 5s --health-timeout 3s --health-retries 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -42,7 +27,7 @@ jobs:
           git rev-parse HEAD HEAD^{tree}
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
-          test "$(git rev-parse HEAD:apps/web)" = "$(git rev-parse 5f496a606499b8000d24e7bea446c6b26a1fb57b:apps/web)"
+          test "$(git rev-parse HEAD:apps/web)" = "bd3e62e8df2a88a0f632d8a9a15b19883f79b39b"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
           grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle
@@ -51,16 +36,16 @@ jobs:
         with:
           node-version: '24'
       - name: Prepare empty disposable DB and actual Next production server
-        timeout-minutes: 7
+        timeout-minutes: 12
         run: |
           set -euo pipefail
-          python3 -c 'from android.qa.real_server_gate import guard; import os; guard(os.environ)'
+          timeout --kill-after=5s 160s python3 android/qa/local_postgres.py start "$RUNNER_TEMP/threadly-local-db.json"
           timeout --kill-after=10s 120s npm ci --workspace apps/web
-          timeout --kill-after=10s 60s npx prisma db push --schema apps/web/prisma/schema.prisma --skip-generate
-          timeout --kill-after=10s 60s npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/drafts/guess_player_key.up.sql
-          timeout --kill-after=10s 150s bash -c 'cd apps/web && node scripts/build-verified.mjs'
-          timeout --kill-after=5s 30s node android/qa/real_db_gate.cjs seed
-          timeout --kill-after=5s 50s python3 android/qa/real_server_gate.py start "$RUNNER_TEMP/threadly-real-server.json"
+          timeout --kill-after=10s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db push --schema apps/web/prisma/schema.prisma --skip-generate
+          timeout --kill-after=10s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/drafts/guess_player_key.up.sql
+          timeout --kill-after=10s 150s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" bash -c 'cd apps/web && node scripts/build-verified.mjs'
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/real_db_gate.cjs seed
+          timeout --kill-after=5s 50s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" python3 android/qa/real_server_gate.py start "$RUNNER_TEMP/threadly-real-server.json"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14.3'
@@ -171,7 +156,7 @@ jobs:
         timeout-minutes: 1
         run: |
           set -euo pipefail
-          timeout --kill-after=5s 30s node android/qa/real_db_gate.cjs verify
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/real_db_gate.cjs verify
       - name: Stop actual Next and remove only the QA reversed port
         if: always()
         timeout-minutes: 1
@@ -179,6 +164,11 @@ jobs:
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
           timeout --kill-after=5s 10s adb -s emulator-5554 reverse --remove tcp:8765 || true
           timeout --kill-after=5s 15s python3 android/qa/real_server_gate.py stop "$RUNNER_TEMP/threadly-real-server.json"
+      - name: Remove owned local PostgreSQL and private credential files
+        if: always()
+        timeout-minutes: 1
+        run: |
+          timeout --kill-after=5s 40s python3 android/qa/local_postgres.py stop "$RUNNER_TEMP/threadly-local-db.json"
       - name: Collect named failure or success pixels, then destroy emulator
         if: always()
         timeout-minutes: 2

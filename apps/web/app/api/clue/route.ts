@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -18,6 +19,11 @@ export async function POST(req: NextRequest) {
         { error: "Invalid requested clue order" },
         { status: 400 }
       );
+    }
+
+    const puzzle = await db.puzzle.findUnique({ where: { id: puzzle_id }, include: { clues: true } });
+    if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
+      return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
     }
 
     // Clue 1 is always public

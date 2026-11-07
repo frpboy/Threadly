@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
       where: { id: puzzle_id },
       include: { clues: { orderBy: { clueOrder: "asc" } } },
     });
-    if (!puzzle || puzzle.status !== "published") {
+    if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
       return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
     const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;

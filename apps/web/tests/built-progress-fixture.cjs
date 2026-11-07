@@ -4,9 +4,9 @@ const Module = require('node:module');
 const original = Module._load;
 class FixturePrisma {
   constructor() {
-    this.puzzle = { findUnique: async ({ where }) => where.id === 'fixture-published' ? {
+    this.puzzle = { findUnique: async ({ where }) => ['fixture-published','fixture-short','fixture-duplicate','fixture-gap'].includes(where.id) ? {
       id: 'fixture-published', status: 'published', answer: 'fixture answer',
-      clues: Array.from({length:5}, (_,i) => ({clueOrder:i+1,clueText:`Fixture clue ${i+1}`})),
+      clues: (where.id==='fixture-short'?[1,2]:where.id==='fixture-duplicate'?[1,2,3,4,4]:where.id==='fixture-gap'?[1,2,3,4,6]:[1,2,3,4,5]).map(clueOrder=>({clueOrder,clueText:`Fixture clue ${clueOrder}`})),
     } : null };
   }
   async $queryRawUnsafe(sql, puzzle, key) {
