@@ -11,7 +11,17 @@ class OfflinePhoneTest {
         val fd = InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand("screencap -p /data/local/tmp/$name.png")
         java.io.FileInputStream(fd.fileDescriptor).use { it.readBytes() }; fd.close()
     }
-    private fun waitText(s: String) { rule.waitUntil(5000) { rule.onAllNodesWithText(s, substring=true).fetchSemanticsNodes().isNotEmpty() } }
+    private fun waitText(s: String) {
+        println("OFFLINE_CHECKPOINT waiting: $s")
+        try {
+            rule.waitUntil(5000) { rule.onAllNodesWithText(s, substring=true).fetchSemanticsNodes().isNotEmpty() }
+            println("OFFLINE_CHECKPOINT passed: $s")
+        } catch (error: Throwable) {
+            rule.onRoot(useUnmergedTree = true).printToLog("OFFLINE_FAILURE")
+            runCatching { shot("phone-failure") }
+            throw error
+        }
+    }
     @Test fun actualLauncherOfflineWrongRestoreSolveResetAndExhaust() {
         waitText("Wears a cape"); shot("phone-open")
         rule.onNodeWithTag("guess_input").performTextInput("wrong")

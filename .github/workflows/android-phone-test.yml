@@ -20,6 +20,7 @@ jobs:
           gradle-version: '8.14.3'
           cache-disabled: true
       - name: Build isolated offline test APK, unit tests and instrumentation
+        id: build
         timeout-minutes: 12
         run: |
           set -euo pipefail
@@ -70,19 +71,33 @@ jobs:
               assert all(int(r.get(k,'0'))==0 for r in roots for k in ['failures','errors','skipped'])
           print('PASS 23 unit and 8 device tests, including actual offline launcher')
           PY
+      - name: Collect device diagnostics even on test failure
+        if: always() && steps.build.outcome == 'success'
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          for name in phone-open phone-solved phone-exhausted phone-failure; do
+            timeout --kill-after=5s 20s adb -s emulator-5554 pull "/data/local/tmp/$name.png" "phone-evidence/$name.png" || true
+          done
+          timeout --kill-after=5s 20s adb -s emulator-5554 logcat -d -t 1200 > phone-evidence/device-log.txt || true
+          if test -d android/app/build/outputs/androidTest-results/connected/phoneTest; then
+            cp -r android/app/build/outputs/androidTest-results/connected/phoneTest phone-evidence/device
+          fi
       - name: Encrypt APK for private delivery, never upload plaintext APK
+        id: encrypted
+        if: always() && steps.build.outcome == 'success'
         run: |
           set -euo pipefail
           APK=android/app/build/outputs/apk/phoneTest/app-phoneTest.apk
           openssl cms -encrypt -binary -aes-256-cbc -in "$APK" -out phone-evidence/threadly-test.apk.cms -outform DER android/qa/phone-delivery.crt
           cp -r android/app/build/test-results/testPhoneTestUnitTest phone-evidence/unit
-          cp -r android/app/build/outputs/androidTest-results/connected/phoneTest phone-evidence/device
           find phone-evidence -type f -name '*.apk' | grep . && exit 1 || true
           test "$(du -sb phone-evidence | cut -f1)" -le 26214400
       - name: Destroy emulator
         if: always()
         run: timeout --kill-after=5s 20s "$ANDROID_HOME/platform-tools/adb" -s emulator-5554 emu kill || true
       - uses: actions/upload-artifact@v4
+        if: always() && steps.encrypted.outcome == 'success'
         with:
           name: threadly-encrypted-phone-test
           path: phone-evidence/
