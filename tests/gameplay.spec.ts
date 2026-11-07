@@ -20,6 +20,7 @@ test("toggles How to Play modal instruction card", async ({ page }) => {
   await expect(page.locator("h3")).not.toBeVisible();
 });
 
+/** Verify keyboard-accessible navigation from daily play to the archive and back. */
 test("navigates between home and puzzle archive via accessible controls", async ({ page }) => {
   await page.goto("/");
 
