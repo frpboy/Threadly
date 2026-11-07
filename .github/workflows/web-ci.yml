@@ -39,7 +39,7 @@ jobs:
 
       - name: Test server-authoritative progress mapping
         working-directory: apps/web
-        run: node --experimental-strip-types --test tests/progress-service.test.mjs
+        run: node --test tests/progress-service.test.mjs
 
       - name: Build Next.js application
         working-directory: apps/web
