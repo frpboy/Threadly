@@ -38,6 +38,9 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
           gradle -p android -PthreadlyTestBuildType=qa testQaUnitTest assembleQa assembleQaAndroidTest processReleaseMainManifest --no-daemon
+          gradle -p android -PthreadlyTestBuildType=qa dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
+          cat "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
+          grep -F 'androidx.compose.ui:ui-test-manifest:' "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           python3 - <<'PY'
           import glob,xml.etree.ElementTree as E
           A='{http://schemas.android.com/apk/res/android}'
@@ -48,8 +51,22 @@ jobs:
               for p in paths:
                   app=E.parse(p).getroot().find('application')
                   assert app.get(A+'usesCleartextTraffic')=='false'
-                  if variant=='qa': assert app.get(A+'networkSecurityConfig')=='@xml/qa_network_security_config'
-                  else: assert app.get(A+'networkSecurityConfig') is None
+                  activities=[a for a in app.findall('activity') if a.get(A+'name')=='androidx.activity.ComponentActivity']
+                  if variant=='qa':
+                      assert app.get(A+'networkSecurityConfig')=='@xml/qa_network_security_config'
+                      assert E.parse(p).getroot().get('package')=='com.frpboy.threadly.qa'
+                      assert len(activities)==1 and activities[0].get(A+'exported')=='true'
+                  else:
+                      assert app.get(A+'networkSecurityConfig') is None
+                      assert not activities, 'test activity leaked into release'
+          tests=glob.glob('android/app/build/intermediates/**/qaAndroidTest/**/AndroidManifest.xml',recursive=True)
+          tests=[p for p in tests if E.parse(p).getroot().find('instrumentation') is not None]
+          assert tests, 'missing QA instrumentation merged manifest'
+          for p in tests:
+              root=E.parse(p).getroot(); ins=root.find('instrumentation')
+              assert root.get('package')=='com.frpboy.threadly.qa.test'
+              assert ins.get(A+'targetPackage')=='com.frpboy.threadly.qa'
+              assert ins.get(A+'name')=='androidx.test.runner.AndroidJUnitRunner'
           root=E.parse('android/app/src/qa/res/xml/qa_network_security_config.xml').getroot()
           assert root.find('base-config').get('cleartextTrafficPermitted')=='false'
           ds=root.findall('domain-config'); assert len(ds)==1
@@ -100,6 +117,20 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
           gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" connectedQaAndroidTest --no-daemon
+      - name: Collect named failure or success pixels, then destroy emulator
+        if: always()
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          mkdir -p loopback-evidence
+          for name in loopback-resume loopback-solved loopback-exhausted; do
+            adb pull "/data/local/tmp/$name.png" "loopback-evidence/$name.png" || echo "Named capture unavailable: $name"
+          done
+          adb logcat -d -b crash > loopback-evidence/crash.txt 2>&1 || true
+          adb emu kill || true
+      - name: Require exact test discovery and all named captures
+        if: success()
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           import glob,xml.etree.ElementTree as E
           units=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
@@ -116,17 +147,9 @@ jobs:
           assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in cases)
           print('PASS exact instrumentation discovery: 5 real-HTTP loopback + 7 existing fake-API UI, zero skip/failure/error')
           PY
-          mkdir -p loopback-evidence
           for name in loopback-resume loopback-solved loopback-exhausted; do
-            adb pull "/data/local/tmp/$name.png" "loopback-evidence/$name.png"
+            test -s "loopback-evidence/$name.png"
           done
-      - name: Destroy emulator and collect bounded diagnostics
-        if: always()
-        run: |
-          export PATH="$ANDROID_HOME/platform-tools:$PATH"
-          mkdir -p loopback-evidence
-          adb logcat -d -b crash > loopback-evidence/crash.txt 2>&1 || true
-          adb emu kill || true
       - name: Bound evidence storage before upload
         id: evidence_bound
         if: always()
