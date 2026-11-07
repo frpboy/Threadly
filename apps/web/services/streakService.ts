@@ -33,13 +33,12 @@ export async function updatePlayerStreak(
 
   if (!streak) {
     // Create new streak record
-    const data: any = {
+    const data = {
       currentStreak: 1,
       bestStreak: 1,
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      ...(userId ? { userId } : { guestId: guestId ?? undefined })
     };
-    if (userId) data.userId = userId;
-    else if (guestId) data.guestId = guestId;
 
     const newStreak = await client.streak.create({
       data
