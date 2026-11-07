@@ -9,10 +9,20 @@ import { recalculatePuzzleDifficulty } from "@/services/difficultyService";
 
 export async function POST(req: NextRequest) {
   try {
-    const payload = await req.json();
-    const puzzleId = payload?.puzzle_id;
-    const guess = payload?.guess;
-    const guestId = payload?.guest_id;
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Request body must be valid JSON" }, { status: 400 });
+    }
+    if (body === null || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Request body must be a JSON object" }, { status: 400 });
+    }
+
+    const payload = body as Record<string, unknown>;
+    const puzzleId = payload.puzzle_id;
+    const guess = payload.guess;
+    const guestId = payload.guest_id;
 
     if (typeof puzzleId !== "string" || !puzzleId.trim() ||
         typeof guess !== "string" || !guess.trim() || guess.length > 200 ||
@@ -105,54 +115,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (isCorrect && scoreAwarded > 0) {
-        try {
-          const today = new Date();
-          let season = await tx.leaderboardSeason.findFirst({
-            where: {
-              startDate: { lte: today },
-              endDate: { gte: today }
-            }
-          });
-          if (!season) {
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() + 30);
-            season = await tx.leaderboardSeason.create({
-              data: {
-                name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
-                startDate: today,
-                endDate
-              }
-            });
-          }
-
-          const userFilter = userId ? { userId } : { guestId };
-          const existingEntry = await tx.leaderboardEntry.findFirst({
-            where: { seasonId: season.id, ...userFilter }
-          });
-
-          if (existingEntry) {
-            await tx.leaderboardEntry.update({
-              where: { id: existingEntry.id },
-              data: { score: existingEntry.score + scoreAwarded }
-            });
-          } else {
-            const data = {
-              seasonId: season.id,
-              score: scoreAwarded,
-              updatedAt: new Date(),
-              ...(userId ? { userId } : { guestId })
-            };
-            await tx.leaderboardEntry.create({ data });
-          }
-        } catch (leaderboardErr) {
-          // Leaderboard is ancillary; keep the accepted guess and game result.
-          console.error("Failed to update leaderboard score:", {
-            name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
-          });
-        }
-      }
-
       return {
         kind: "created" as const,
         clueNumber,
@@ -170,6 +132,56 @@ export async function POST(req: NextRequest) {
         { error: attempt.state === "solved" ? "GAME_ALREADY_FINISHED" : "GAME_EXHAUSTED" },
         { status: 409, headers: { "Cache-Control": "private, no-store" } }
       );
+    }
+
+    if (attempt.isCorrect && attempt.scoreAwarded > 0) {
+            if (isCorrect && scoreAwarded > 0) {
+              try {
+                const today = new Date();
+                let season = await db.leaderboardSeason.findFirst({
+                  where: {
+                    startDate: { lte: today },
+                    endDate: { gte: today }
+                  }
+                });
+                if (!season) {
+                  const endDate = new Date();
+                  endDate.setDate(endDate.getDate() + 30);
+                  season = await db.leaderboardSeason.create({
+                    data: {
+                      name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
+                      startDate: today,
+                      endDate
+                    }
+                  });
+                }
+      
+                const userFilter = userId ? { userId } : { guestId };
+                const existingEntry = await db.leaderboardEntry.findFirst({
+                  where: { seasonId: season.id, ...userFilter }
+                });
+      
+                if (existingEntry) {
+                  await db.leaderboardEntry.update({
+                    where: { id: existingEntry.id },
+                    data: { score: existingEntry.score + scoreAwarded }
+                  });
+                } else {
+                  const data = {
+                    seasonId: season.id,
+                    score: scoreAwarded,
+                    updatedAt: new Date(),
+                    ...(userId ? { userId } : { guestId })
+                  };
+                  await db.leaderboardEntry.create({ data });
+                }
+              } catch (leaderboardErr) {
+                // Leaderboard is ancillary; keep the accepted guess and game result.
+                console.error("Failed to update leaderboard score:", {
+                  name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
+                });
+              }
+            }
     }
 
     recalculatePuzzleDifficulty(puzzle.id).catch((error) => {
