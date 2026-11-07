@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
 
     const session = await auth();
     const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-    if (!userId && !guestId) {
+    const playerGuestId = typeof guestId === "string" ? guestId : null;
+    if (!userId && playerGuestId === null) {
       return NextResponse.json(
         { error: "Authentication or guest_id is required" },
         { status: 401 }
@@ -62,8 +63,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Puzzle has no clues" }, { status: 409 });
     }
 
-    const identityKey = userId ? `user:${userId}` : `guest:${guestId}`;
-    const playerFilter = userId ? { userId } : { guestId };
+    const identityKey = userId ? `user:${userId}` : `guest:${playerGuestId}`;
+    const playerFilter = userId ? { userId } : { guestId: playerGuestId! };
 
     // PostgreSQL transaction-scoped advisory lock serializes guesses for this
     // player + puzzle. The read, validation, insert and completion side effects
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
       await tx.guess.create({
         data: {
           userId,
-          guestId: userId ? null : guestId,
+          guestId: userId ? null : playerGuestId,
           puzzleId: puzzle.id,
           guessText: normalizedGuess,
           isCorrect,
@@ -108,10 +109,10 @@ export async function POST(req: NextRequest) {
       if (gameFinished) {
         // Keep all completion effects under the same lock and transaction.
         streakInfo = await updatePlayerStreak(
-          userId, userId ? null : guestId, isCorrect, tx
+          userId, userId ? null : playerGuestId, isCorrect, tx
         );
         statsInfo = await updatePlayerStats(
-          userId, userId ? null : guestId, isCorrect, clueNumber, tx
+          userId, userId ? null : playerGuestId, isCorrect, clueNumber, tx
         );
       }
 
@@ -135,53 +136,53 @@ export async function POST(req: NextRequest) {
     }
 
     if (attempt.isCorrect && attempt.scoreAwarded > 0) {
-            if (isCorrect && scoreAwarded > 0) {
-              try {
-                const today = new Date();
-                let season = await db.leaderboardSeason.findFirst({
-                  where: {
-                    startDate: { lte: today },
-                    endDate: { gte: today }
-                  }
-                });
-                if (!season) {
-                  const endDate = new Date();
-                  endDate.setDate(endDate.getDate() + 30);
-                  season = await db.leaderboardSeason.create({
-                    data: {
-                      name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
-                      startDate: today,
-                      endDate
-                    }
-                  });
-                }
-      
-                const userFilter = userId ? { userId } : { guestId };
-                const existingEntry = await db.leaderboardEntry.findFirst({
-                  where: { seasonId: season.id, ...userFilter }
-                });
-      
-                if (existingEntry) {
-                  await db.leaderboardEntry.update({
-                    where: { id: existingEntry.id },
-                    data: { score: existingEntry.score + scoreAwarded }
-                  });
-                } else {
-                  const data = {
-                    seasonId: season.id,
-                    score: scoreAwarded,
-                    updatedAt: new Date(),
-                    ...(userId ? { userId } : { guestId })
-                  };
-                  await db.leaderboardEntry.create({ data });
-                }
-              } catch (leaderboardErr) {
-                // Leaderboard is ancillary; keep the accepted guess and game result.
-                console.error("Failed to update leaderboard score:", {
-                  name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
-                });
-              }
+      try {
+        const today = new Date();
+        let season = await db.leaderboardSeason.findFirst({
+          where: {
+            startDate: { lte: today },
+            endDate: { gte: today }
+          }
+        });
+        if (!season) {
+          const endDate = new Date();
+          endDate.setDate(endDate.getDate() + 30);
+          season = await db.leaderboardSeason.create({
+            data: {
+              name: `Season ${today.toLocaleString("default", { month: "long" })} ${today.getFullYear()}`,
+              startDate: today,
+              endDate
             }
+          });
+        }
+
+        // A successful attempt is unique for this player/puzzle because the
+        // transaction above rejects all later guesses after the winning one.
+        const userFilter = userId ? { userId } : { guestId: playerGuestId! };
+        const existingEntry = await db.leaderboardEntry.findFirst({
+          where: { seasonId: season.id, ...userFilter }
+        });
+
+        if (existingEntry) {
+          await db.leaderboardEntry.update({
+            where: { id: existingEntry.id },
+            data: { score: existingEntry.score + attempt.scoreAwarded }
+          });
+        } else {
+          const data = {
+            seasonId: season.id,
+            score: attempt.scoreAwarded,
+            updatedAt: new Date(),
+            ...(userId ? { userId } : { guestId: playerGuestId! })
+          };
+          await db.leaderboardEntry.create({ data });
+        }
+      } catch (leaderboardErr) {
+        // Leaderboard is ancillary and must not roll back a saved, completed game.
+        console.error("Failed to update leaderboard score:", {
+          name: leaderboardErr instanceof Error ? leaderboardErr.name : "UnknownError"
+        });
+      }
     }
 
     recalculatePuzzleDifficulty(puzzle.id).catch((error) => {
