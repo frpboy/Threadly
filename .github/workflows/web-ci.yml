@@ -33,19 +33,16 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: apps/web/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install web dependencies
-        working-directory: apps/web
-        run: npm ci
+        run: npm ci --workspace apps/web
 
       - name: Test server-authoritative progress mapping
-        working-directory: apps/web
-        run: node --test tests/progress-service.test.mjs
+        run: node --test apps/web/tests/progress-service.test.mjs
 
       - name: Build Next.js application
-        working-directory: apps/web
         env:
           DATABASE_URL: "postgresql://ci:ci@127.0.0.1:5432/threadly_ci"
           AUTH_SECRET: "threadly-ci-placeholder-only"
-        run: npm run build
+        run: npm run build --workspace apps/web
