@@ -7,6 +7,7 @@ import androidx.compose.ui.unit.dp
 import app.threadly.game.data.*
 import app.threadly.game.ui.GameScreen
 import app.threadly.game.ui.GameViewModel
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
@@ -37,6 +38,14 @@ class GameScreenTest {
             rule.onAllNodesWithText("Retry").fetchSemanticsNodes().isNotEmpty() ||
             rule.onAllNodesWithText("Correct", substring = true).fetchSemanticsNodes().isNotEmpty() }
     }
+    /** Saves a real emulator screenshot (fake backend data) for the CI artifact. */
+    private fun shot(name: String) {
+        rule.waitForIdle()
+        val pfd = InstrumentationRegistry.getInstrumentation().uiAutomation
+            .executeShellCommand("screencap -p /data/local/tmp/$name.png")
+        java.io.FileInputStream(pfd.fileDescriptor).use { it.readBytes() }
+        pfd.close()
+    }
     private fun type(text: String) {
         rule.onNodeWithTag("guess_input").performTextInput(text)
     }
@@ -48,6 +57,7 @@ class GameScreenTest {
         rule.setContent { GameScreen(GameViewModel(api, "guest-0001")) }
         rule.waitUntilExactlyOneExists(hasText("3.  c"), 5_000)
         rule.onNodeWithText("Guesses: x, y").assertIsDisplayed()
+        shot("shot-resumed")
     }
 
     @Test fun wrongGuessShowsNextServerClue() {
@@ -64,6 +74,7 @@ class GameScreenTest {
         type("batman"); rule.onNodeWithText("Guess").performClick()
         rule.waitUntilExactlyOneExists(hasText("Correct! +100 points. Answer: Batman"), 5_000)
         rule.onNodeWithTag("guess_input").assertDoesNotExist()
+        shot("shot-solved")
     }
 
     @Test fun http409RecoversToServerState() {

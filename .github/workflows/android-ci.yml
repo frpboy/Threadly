@@ -36,8 +36,11 @@ jobs:
           timeout 180 adb wait-for-device || { cat /tmp/emu.log; exit 1; }
           for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ] && b=1 && break; sleep 2; done
           [ "${b:-0}" = 1 ] || { tail -80 /tmp/emu.log; exit 1; }
-          adb shell screencap -p /sdcard/before.png && adb pull /sdcard/before.png emulator-home.png || true
+          rm -rf shots; mkdir -p shots
           gradle -p android connectedDebugAndroidTest --no-daemon || { find android/app/build/outputs/androidTest-results -name '*.xml' -exec cat {} \;; adb logcat -d -b crash; exit 1; }
+          adb shell ls -l /data/local/tmp | tee shots/ls.txt
+          adb pull /data/local/tmp/shot-resumed.png shots/
+          adb pull /data/local/tmp/shot-solved.png shots/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -45,4 +48,4 @@ jobs:
           path: |
             android/app/build/reports/androidTests
             android/app/build/outputs/androidTest-results
-            emulator-home.png
+            shots
