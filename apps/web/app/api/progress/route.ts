@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await auth();
-    const userId = (session?.user as any)?.id || null;
+    const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
     if (!userId && !guestId) {
       return NextResponse.json(
         { error: "Authentication or guest_id is required" },
