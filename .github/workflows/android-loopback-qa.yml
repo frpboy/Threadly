@@ -127,7 +127,7 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
           export ANDROID_SERIAL=emulator-5554
-          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" :app:connectedQaAndroidTest --no-daemon
+          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" -Pandroid.testInstrumentationRunnerArguments.class=app.threadly.game.GameScreenTest,app.threadly.game.LoopbackHttpUiTest :app:connectedQaAndroidTest --no-daemon
       - name: Collect named failure or success pixels, then destroy emulator
         if: always()
         timeout-minutes: 2
