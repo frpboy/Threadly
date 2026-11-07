@@ -20,6 +20,7 @@ jobs:
       - name: Record exact source and assert release isolation
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s android/qa -p 'test_*.py' -v
           git rev-parse HEAD HEAD^{tree}
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
@@ -73,8 +74,14 @@ jobs:
           adb shell id -u | tr -d '\r' | grep -Fx 0
           # Install before fencing so the exact target UID is known. Instrumentation runs in this target UID.
           adb install -r android/app/build/outputs/apk/qa/app-qa.apk
-          QA_UID=$(adb shell dumpsys package com.frpboy.threadly.qa | tr -d '\r' | sed -n 's/^ *userId=\([0-9][0-9]*\).*$/\1/p' | head -1)
-          [[ "$QA_UID" =~ ^[0-9]+$ ]] && test "$QA_UID" -ge 10000
+          mkdir -p loopback-evidence
+          adb shell cmd package list packages -U com.frpboy.threadly.qa > loopback-evidence/package-uid.txt
+          cat loopback-evidence/package-uid.txt
+          if ! QA_UID=$(python3 android/qa/parse_uid.py < loopback-evidence/package-uid.txt); then
+            echo 'No verified target UID; refusing to install any firewall rule or run instrumentation' >&2
+            exit 1
+          fi
+          echo "Verified target package UID: $QA_UID"
           echo "THREADLY_QA_UID=$QA_UID" >> "$GITHUB_ENV"
           # Restrict only the target application UID, not adbd/root control traffic.
           # No established-connection exemption lets the app escape using an existing socket.
@@ -125,23 +132,11 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          python3 - <<'PY2'
-          from pathlib import Path
-          roots=[Path('loopback-evidence'),Path('android/app/build/outputs/androidTest-results'),Path('android/app/build/test-results/testQaUnitTest')]
-          files=[p for root in roots if root.exists() for p in root.rglob('*') if p.is_file()]
-          assert files, 'missing evidence'
-          assert all(p.suffix in ['.png','.txt','.xml'] for p in files), 'unexpected evidence type'
-          total=sum(p.stat().st_size for p in files)
-          assert total <= 25*1024*1024, 'evidence exceeds 25MiB cap'
-          print('Evidence bytes:',total)
-          PY2
+          python3 android/qa/stage_evidence.py
       - uses: actions/upload-artifact@v4
         if: always() && steps.evidence_bound.outcome == 'success'
         with:
           name: threadly-synthetic-loopback-evidence
-          path: |
-            loopback-evidence
-            android/app/build/outputs/androidTest-results
-            android/app/build/test-results/testQaUnitTest
+          path: bounded-loopback-evidence
           if-no-files-found: error
           retention-days: 3
