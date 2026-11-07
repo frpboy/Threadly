@@ -24,15 +24,15 @@ class OfflinePhoneTest {
     }
     @Test fun actualLauncherOfflineWrongRestoreSolveResetAndExhaust() {
         waitText("Wears a cape"); shot("phone-open")
-        rule.onNodeWithTag("guess_input").performTextInput("wrong")
-        rule.onNodeWithText("Guess").performClick(); waitText("A detective")
+        rule.onNodeWithTag("guess_input").performScrollTo().performTextInput("wrong")
+        rule.onNodeWithText("Guess").performScrollTo().assertIsDisplayed().performClick(); waitText("A detective")
         rule.activityRule.scenario.recreate(); waitText("Guesses: wrong")
-        rule.onNodeWithTag("guess_input").performTextInput("Batman")
-        rule.onNodeWithText("Guess").performClick(); waitText("Correct! +80"); shot("phone-solved")
+        rule.onNodeWithTag("guess_input").performScrollTo().performTextInput("Batman")
+        rule.onNodeWithText("Guess").performScrollTo().assertIsDisplayed().performClick(); waitText("Correct! +80"); shot("phone-solved")
         rule.onNodeWithText("Reset sample").performClick(); waitText("Wears a cape")
         repeat(5) { i ->
-            rule.onNodeWithTag("guess_input").performTextInput("wrong$i")
-            rule.onNodeWithText("Guess").performClick()
+            rule.onNodeWithTag("guess_input").performScrollTo().performTextInput("wrong$i")
+            rule.onNodeWithText("Guess").performScrollTo().assertIsDisplayed().performClick()
             if (i < 4) waitText("Guesses: " + (0..i).joinToString(", ") { "wrong$it" })
         }
         waitText("Out of clues."); shot("phone-exhausted")

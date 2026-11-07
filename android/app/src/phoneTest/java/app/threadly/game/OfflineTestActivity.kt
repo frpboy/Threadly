@@ -32,7 +32,7 @@ class OfflineTestActivity : ComponentActivity() {
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                    Text("OFFLINE TEST - one sample, no live server", Modifier.padding(12.dp))
+                    Text("OFFLINE TEST - one sample, no live server", Modifier.padding(12.dp), color = MaterialTheme.colorScheme.onSurface)
                     Button(onClick = {
                         getSharedPreferences("offline-sample", MODE_PRIVATE).edit().clear().commit()
                         viewModelStore.clear()
