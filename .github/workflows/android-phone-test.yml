@@ -1,0 +1,90 @@
+name: Threadly private-delivery offline phone test
+on:
+  push:
+    branches: ['android/phone-test-20261108']
+permissions:
+  contents: read
+concurrency:
+  group: threadly-phone-test
+  cancel-in-progress: false
+jobs:
+  phone-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: Build isolated offline test APK, unit tests and instrumentation
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          test -z "${THREADLY_KEYSTORE_PATH:-}"
+          mkdir -p phone-evidence
+          git rev-parse HEAD HEAD^{tree} HEAD:apps/web > phone-evidence/source.txt
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          timeout --kill-after=10s 650s gradle -p android -PthreadlyTestBuildType=phoneTest :app:testPhoneTestUnitTest :app:assemblePhoneTest :app:assemblePhoneTestAndroidTest --no-daemon
+          APK=android/app/build/outputs/apk/phoneTest/app-phoneTest.apk
+          BT=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          "$BT/apksigner" verify --verbose --print-certs "$APK" > phone-evidence/signature.txt
+          "$BT/aapt" dump badging "$APK" > phone-evidence/badging.txt
+          "$BT/aapt" dump permissions "$APK" > phone-evidence/permissions.txt
+          grep -F "package: name='com.frpboy.threadly.test'" phone-evidence/badging.txt
+          grep -F "launchable-activity: name='app.threadly.game.OfflineTestActivity'" phone-evidence/badging.txt
+          if grep -q android.permission.INTERNET phone-evidence/permissions.txt; then exit 1; fi
+          sha256sum "$APK" > phone-evidence/apk-sha256.txt
+      - name: Install and test actual offline launcher on API36
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-phone" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-phone" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-phone/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          timeout --kill-after=10s 300s sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | timeout --kill-after=10s 60s avdmanager create avd -n phone -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/phone.avd" --force
+          emulator -avd phone -port 5554 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/phone-emu.log" 2>&1 &
+          export ANDROID_SERIAL=emulator-5554
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          timeout --kill-after=5s 180s adb -s "$ANDROID_SERIAL" wait-for-device
+          deadline=$((SECONDS+240))
+          while (( SECONDS < deadline )); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
+          test "${ready:-0}" = 1
+          timeout --kill-after=10s 180s gradle -p android -PthreadlyTestBuildType=phoneTest :app:connectedPhoneTestAndroidTest --no-daemon
+          for name in phone-open phone-solved phone-exhausted; do adb pull "/data/local/tmp/$name.png" "phone-evidence/$name.png"; done
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as E
+          units=glob.glob('android/app/build/test-results/testPhoneTestUnitTest/TEST-*.xml')
+          ui=glob.glob('android/app/build/outputs/androidTest-results/connected/phoneTest/**/*.xml',recursive=True)
+          for paths,total in [(units,23),(ui,8)]:
+              roots=[E.parse(p).getroot() for p in paths]
+              assert roots and sum(int(r.get('tests','0')) for r in roots)==total,(paths,total)
+              assert all(int(r.get(k,'0'))==0 for r in roots for k in ['failures','errors','skipped'])
+          print('PASS 23 unit and 8 device tests, including actual offline launcher')
+          PY
+      - name: Encrypt APK for private delivery, never upload plaintext APK
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/phoneTest/app-phoneTest.apk
+          openssl cms -encrypt -binary -aes-256-cbc -in "$APK" -out phone-evidence/threadly-test.apk.cms -outform DER android/qa/phone-delivery.crt
+          cp -r android/app/build/test-results/testPhoneTestUnitTest phone-evidence/unit
+          cp -r android/app/build/outputs/androidTest-results/connected/phoneTest phone-evidence/device
+          find phone-evidence -type f -name '*.apk' | grep . && exit 1 || true
+          test "$(du -sb phone-evidence | cut -f1)" -le 26214400
+      - name: Destroy emulator
+        if: always()
+        run: timeout --kill-after=5s 20s "$ANDROID_HOME/platform-tools/adb" -s emulator-5554 emu kill || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: threadly-encrypted-phone-test
+          path: phone-evidence/
+          retention-days: 1
+          if-no-files-found: error

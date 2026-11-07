@@ -32,6 +32,12 @@ android {
         }
     }
     buildTypes {
+        phoneTest {
+            initWith debug
+            applicationIdSuffix '.test'
+            versionNameSuffix '-offline-test'
+            matchingFallbacks = ['debug']
+        }
         qa {
             initWith debug
             applicationIdSuffix '.qa'
@@ -63,6 +69,7 @@ dependencies {
     androidTestImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2'
     debugImplementation 'androidx.compose.ui:ui-test-manifest'
     qaImplementation 'androidx.compose.ui:ui-test-manifest'
+    phoneTestImplementation 'androidx.compose.ui:ui-test-manifest'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.json:json:20240303'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
