@@ -137,13 +137,12 @@ export async function POST(req: NextRequest) {
               data: { score: existingEntry.score + scoreAwarded }
             });
           } else {
-            const data: any = {
+            const data = {
               seasonId: season.id,
               score: scoreAwarded,
-              updatedAt: new Date()
+              updatedAt: new Date(),
+              ...(userId ? { userId } : { guestId })
             };
-            if (userId) data.userId = userId;
-            else data.guestId = guestId;
             await tx.leaderboardEntry.create({ data });
           }
         } catch (leaderboardErr) {
