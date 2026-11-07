@@ -1,0 +1,57 @@
+name: Threadly signed APK runtime QA (install and launch only)
+on:
+  push:
+    branches: ['android/**']
+    paths: ['release-qa/**', '.github/workflows/android-signed-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  signed-apk-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: { persist-credentials: false }
+      - name: Verify signature of the committed APK (public cert only)
+        run: |
+          set -euo pipefail
+          BT="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)"
+          export JAVA_HOME="$JAVA_HOME_21_X64"; export PATH="$JAVA_HOME/bin:$BT:$PATH"
+          mkdir -p out
+          sha256sum release-qa/threadly-signed.apk | tee out/apk.sha256
+          apksigner verify --verbose --print-certs release-qa/threadly-signed.apk | tee out/apksigner.txt
+          grep -q '3c43ac6837a47eabeb06bc67948526c029031eb3fa26ac1b0ada28592ad4df03' out/apksigner.txt
+          aapt2 dump badging release-qa/threadly-signed.apk | grep -E "^package|uses-permission|launchable" | tee out/badging.txt
+      - name: API36 emulator - install, launch, screenshot
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android"
+          export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME" ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          sdkmanager 'emulator' 'system-images;android-36;google_apis;x86_64'
+          echo no | avdmanager create avd -n t -k 'system-images;android-36;google_apis;x86_64' --path "$ANDROID_AVD_HOME/t.avd" --force
+          emulator -avd t -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > /tmp/emu.log 2>&1 &
+          trap 'kill $! || true' EXIT
+          timeout 180 adb wait-for-device || { cat /tmp/emu.log; exit 1; }
+          for i in $(seq 1 120); do [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ] && b=1 && break; sleep 2; done
+          [ "${b:-0}" = 1 ] || { tail -80 /tmp/emu.log; exit 1; }
+          adb logcat -c
+          adb install release-qa/threadly-signed.apk | tee out/install.txt
+          adb shell dumpsys package com.frpboy.threadly | grep -E 'versionName|versionCode|pkgFlags|flags=|signatures|Signing' | tee out/dumpsys.txt
+          adb shell am start -W -n com.frpboy.threadly/app.threadly.game.MainActivity | tee out/start.txt
+          sleep 12
+          adb shell screencap -p /sdcard/s1.png; adb pull /sdcard/s1.png out/launch.png
+          adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb pull /sdcard/ui.xml out/ui.xml || true
+          adb shell pidof com.frpboy.threadly | tee out/pid.txt
+          adb logcat -d > out/logcat.txt
+          ! grep -E 'FATAL EXCEPTION|ANR in com.frpboy.threadly' out/logcat.txt
+          test -s out/pid.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: threadly-signed-apk-qa
+          path: out
