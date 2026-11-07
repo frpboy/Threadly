@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
     // Get current session for logged in user
     const session = await auth();
-    const userId = (session?.user as any)?.id || null;
+    const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
     if (!userId && !validGuestId(guest_id)) {
       return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
@@ -101,8 +101,8 @@ export async function POST(req: NextRequest) {
       stats: statsInfo,
       message: isCorrect ? "Correct!" : "Incorrect answer"
     });
-  } catch (error: any) {
-    console.error("Failed to process guess:", error);
+  } catch (error: unknown) {
+    console.error("Failed to process guess:", error instanceof Error ? error.message : "Unknown error");
     return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }
