@@ -44,7 +44,7 @@ export async function GET() {
       }))
     });
   } catch (error: any) {
-    console.error("Leaderboard GET failed:", error);
+    console.error("Leaderboard GET failed");
     return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }

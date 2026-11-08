@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       puzzle: updatedPuzzle
     });
   } catch (error: any) {
-    console.error("Failed to publish puzzle:", error);
+    console.error("Failed to publish puzzle");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

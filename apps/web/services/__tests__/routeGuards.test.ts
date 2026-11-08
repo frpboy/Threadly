@@ -150,3 +150,35 @@ test("clue authenticated player identity takes precedence over supplied guest id
  assert.equal((await f.send({puzzle_id:"p",requested_clue_order:2,guest_id:"otherguest"})).status,200);
  assert.equal(f.calls.key,"u:user123");
 });
+
+test("API failure logs do not disclose exception payloads or private player history",async()=>{
+ const marker="synthetic-private-password-and-guest-history";
+ const calls: unknown[][]=[];const original=console.error;console.error=(...args:unknown[])=>{calls.push(args);};
+ try {
+  const f=route("progress", {
+   "@/lib/db": {db:{puzzle:{findUnique:async()=>{throw new Error(marker);}}}},
+   "@/auth": {auth:async()=>null},
+   "@/services/scoringService": {calculateScore:()=>100},
+   "@/services/progressService.ts": {buildProgress},
+   "@/services/prismaAttemptStore": {prismaHistory:()=>{throw new Error("history must not run");}},
+   "@/services/requestValidation":validation,
+  });
+  const r=await f.POST(new Request("http://localhost/api/progress",{method:"POST",body:JSON.stringify({puzzle_id:"p",guest_id:"guest123"})}));
+  assert.equal(r.status,500);assert.equal(r.headers.get("cache-control"),"private, no-store");
+  assert.deepEqual(calls,[["Failed to load progress"]]);assert(!JSON.stringify(calls).includes(marker));assert(!(await r.text()).includes(marker));
+ } finally {console.error=original;}
+});
+test("API route console errors use constant operation text, not exception objects/messages",()=>{
+ for(const name of ["guess","progress","clue","daily","leaderboard","archive","archive/[id]","admin/publish","admin/puzzles","admin/generate-ai"]) {
+  const source=readFileSync(new URL(`../../app/api/${name}/route.ts`,import.meta.url),"utf8");
+  const ast=ts.createSourceFile(name,source,ts.ScriptTarget.Latest,true);
+  let count=0;
+  function visit(node:ts.Node) {
+   if(ts.isCallExpression(node)&&ts.isPropertyAccessExpression(node.expression)&&node.expression.expression.getText(ast)==="console"&&node.expression.name.text==="error") {
+    count++;assert.equal(node.arguments.length,1,name+" error log argument count");assert(ts.isStringLiteral(node.arguments[0]),name+" constant error log required");
+   }
+   ts.forEachChild(node,visit);
+  }
+  visit(ast);assert(count>0,name+" error-log scan covered");
+ }
+});

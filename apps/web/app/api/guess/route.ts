@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     // Run dynamic difficulty assessment asynchronously in background
     recalculatePuzzleDifficulty(puzzle.id).catch(err => {
-      console.error("Difficulty engine failed:", err);
+      console.error("Difficulty engine failed");
     });
 
     const showAnswer = isCorrect || clues_revealed >= MAX_CLUES;
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       message: isCorrect ? "Correct!" : "Incorrect answer"
     });
   } catch (error: unknown) {
-    console.error("Failed to process guess:", error instanceof Error ? error.message : "Unknown error");
+    console.error("Failed to process guess");
     return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }

@@ -21,7 +21,7 @@ export async function GET() {
       published_date: puzzle.publishedDate
     });
   } catch (error: any) {
-    console.error("Failed to fetch daily puzzle:", error);
+    console.error("Failed to fetch daily puzzle");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

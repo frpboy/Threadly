@@ -35,7 +35,7 @@ export async function GET(
       published_date: puzzle.publishedDate
     });
   } catch (error: any) {
-    console.error("Failed to fetch archive puzzle details:", error);
+    console.error("Failed to fetch archive puzzle details");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

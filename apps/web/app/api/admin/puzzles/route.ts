@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       }))
     });
   } catch (error: any) {
-    console.error("Failed to fetch admin puzzles:", error);
+    console.error("Failed to fetch admin puzzles");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

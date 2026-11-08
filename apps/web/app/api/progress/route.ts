@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     });
     return privateJson(progress);
   } catch (error) {
-    console.error("Failed to load progress:", error);
+    console.error("Failed to load progress");
     return privateJson({ error: "Internal Server Error" }, { status: 500 });
   }
 }
