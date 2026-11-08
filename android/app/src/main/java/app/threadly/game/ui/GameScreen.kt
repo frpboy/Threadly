@@ -29,12 +29,15 @@ private val Card = Color(0xFF1E2230)
 @Composable
 fun GameScreen(vm: GameViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var aboutOpen by rememberSaveable { mutableStateOf(false) }
     MaterialTheme(colorScheme = darkColorScheme()) {
+        if (aboutOpen) AboutScreen { aboutOpen = false }
         Column(
             Modifier.fillMaxSize().background(Bg).safeDrawingPadding()
                 .verticalScroll(rememberScrollState()).padding(20.dp),
         ) {
             Text("Threadly", color = Color.White, fontSize = 28.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            TextButton(onClick = { aboutOpen = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) { Text("About Threadly") }
             Spacer(Modifier.height(12.dp))
             when (val s = state) {
                 UiState.Loading -> Text("Loading today's puzzle...", color = Color(0xFFAAB0C0))

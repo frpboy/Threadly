@@ -18,6 +18,9 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         {children}
+        <footer style={{ textAlign: "center", padding: "1rem", marginTop: "auto" }}>
+          <a href="/about" style={{ textDecoration: "underline", display: "inline-block", padding: ".6rem" }}>About Threadly</a>
+        </footer>
       </body>
     </html>
   );

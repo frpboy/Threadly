@@ -1,0 +1,11 @@
+.page { max-width: 42rem; width: 100%; margin: 0 auto; padding: 2rem 1.25rem 3rem; box-sizing: border-box; line-height: 1.5; }
+.page h1 { font-size: 2rem; font-weight: 700; margin: 1.4rem 0 .35rem; }
+.intro { margin: 0 0 1.5rem; }
+.back { display: inline-block; min-height: 2.75rem; align-content: center; }
+.rows { margin: 0; }
+.row { padding: 1rem 0; border-bottom: 1px solid #66707c; }
+.row dt { font-weight: 650; margin-bottom: .35rem; }
+.row dd { margin: 0; overflow-wrap: anywhere; }
+.page a { color: #86b7ff; text-decoration: underline; text-underline-offset: .2em; }
+.page a:focus-visible { outline: 3px solid #ffb48c; outline-offset: 4px; border-radius: 2px; }
+[data-theme="light"] .page a { color: #154fa3; }
