@@ -88,13 +88,13 @@ jobs:
           # Restrict only the target application UID, not adbd/root control traffic.
           # No established-connection exemption lets the app escape using an existing socket.
           for bin in iptables ip6tables; do
-            adb shell "$bin -N THREADLY_QA_EGRESS"
-            adb shell "$bin -A THREADLY_QA_EGRESS -o lo -j ACCEPT"
-            adb shell "$bin -A THREADLY_QA_EGRESS -j REJECT"
-            adb shell "$bin -I OUTPUT 1 -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
-            adb shell "$bin -C OUTPUT -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
-            adb shell "$bin -C THREADLY_QA_EGRESS -o lo -j ACCEPT"
-            adb shell "$bin -C THREADLY_QA_EGRESS -j REJECT"
+            adb shell "$bin -w 5 -N THREADLY_QA_EGRESS"
+            adb shell "$bin -w 5 -A THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -w 5 -A THREADLY_QA_EGRESS -j REJECT"
+            adb shell "$bin -w 5 -I OUTPUT 1 -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -w 5 -C OUTPUT -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -w 5 -C THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -w 5 -C THREADLY_QA_EGRESS -j REJECT"
           done
           # No skips, no ignored firewall failures, no production/DB/secret supplied.
       - name: Run only3new About fixture cases
