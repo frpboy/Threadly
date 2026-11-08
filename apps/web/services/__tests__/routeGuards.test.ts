@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import ts from "typescript";
 import * as validation from "../requestValidation.ts";
 import { validPuzzleContent } from "../puzzleContract.ts";
+import { buildProgress } from "../progressService.ts";
 const require = createRequire(import.meta.url);
 /** Execute the actual route source, transpiled without rewriting its logic; external services are fakes. */
 function route(name: string, mocks: Record<string, unknown>) {
@@ -106,4 +107,46 @@ test("all public read boundaries reject malformed published content without hist
  assert.equal((await route("daily",mocks).GET()).status,404);
  assert.equal((await route("archive/[id]",mocks).GET(request,{params:Promise.resolve({id:"p"})})).status,404);
  assert.deepEqual((await (await route("archive",mocks).GET()).json()).puzzles,[]);
+});
+
+function clueRoute(history: any[] = [], userId: string | null = null) {
+ const calls = { puzzle: 0, history: 0, key: "" };
+ const f = route("clue", {
+  "@/lib/db": { db: { puzzle: { findUnique: async () => { calls.puzzle++; return { id: "p", status: "published", answer: "answer", clues: Array.from({length:5},(_,i)=>({clueOrder:i+1,clueText:`clue${i+1}`})) }; } } } },
+  "@/auth": { auth: async () => userId ? {user:{id:userId}} : null },
+  "@/services/requestValidation": validation,
+  "@/services/progressService.ts": { buildProgress },
+  "@/services/prismaAttemptStore": { prismaHistory: () => async (_p: string,key: string) => { calls.history++;calls.key=key;return history; } },
+  "@/services/scoringService": { calculateScore: (n:number) => 120 - 20*n },
+ });
+ return { calls, post: f.POST, send: (body:unknown) => f.POST(new Request("http://localhost/api/clue",{method:"POST",body:JSON.stringify(body)})) };
+}
+test("clue rejects malformed JSON, nonobjects, fractions and invalid ids before DB",async()=>{
+ const f=clueRoute();
+ for(const body of [null,[],42,{puzzle_id:[],requested_clue_order:1},{puzzle_id:"p",requested_clue_order:1.5},{puzzle_id:"p",requested_clue_order:0},{puzzle_id:"p",requested_clue_order:6}]) {
+  const r=await f.send(body);assert.equal(r.status,400);assert.equal(r.headers.get("cache-control"),"private, no-store");
+ }
+ assert.equal((await f.post(new Request("http://localhost/api/clue",{method:"POST",body:"{"}))).status,400);
+ assert.equal(f.calls.puzzle,0);
+});
+test("clue1 stays public but later clues require a valid guest and authoritative unlock",async()=>{
+ const f=clueRoute();
+ assert.equal((await f.send({puzzle_id:"p",requested_clue_order:1})).status,200);
+ assert.equal((await f.send({puzzle_id:"p",requested_clue_order:2})).status,400);
+ assert.equal(f.calls.history,0);
+ const r=await f.send({puzzle_id:"p",requested_clue_order:2,guest_id:"guest123"});
+ assert.equal(r.status,403);assert.equal(f.calls.key,"g:guest123");
+ assert.equal(r.headers.get("cache-control"),"private, no-store");
+});
+test("clue cannot reveal beyond a solved clue, even when a guess row exists there",async()=>{
+ const solved=clueRoute([{clueNumber:1,isCorrect:true,guessText:"answer",scoreAwarded:100}]);
+ assert.equal((await solved.send({puzzle_id:"p",requested_clue_order:2,guest_id:"guest123"})).status,403);
+ const wrong=clueRoute([{clueNumber:1,isCorrect:false,guessText:"wrong",scoreAwarded:0}]);
+ const r=await wrong.send({puzzle_id:"p",requested_clue_order:2,guest_id:"guest123"});
+ assert.equal(r.status,200);assert.deepEqual(await r.json(),{order:2,text:"clue2"});
+});
+test("clue authenticated player identity takes precedence over supplied guest identity",async()=>{
+ const f=clueRoute([{clueNumber:1,isCorrect:false,guessText:"wrong",scoreAwarded:0}],"user123");
+ assert.equal((await f.send({puzzle_id:"p",requested_clue_order:2,guest_id:"otherguest"})).status,200);
+ assert.equal(f.calls.key,"u:user123");
 });
