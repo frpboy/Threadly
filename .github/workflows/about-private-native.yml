@@ -24,6 +24,8 @@ jobs:
           test "$GITHUB_REF_NAME" = android/about-private-qa-20261109
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test -z "${THREADLY_KEYSTORE_PATH:-}"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/aapt"
           test -f android/qa/about-recipient.asc
           test -f android/qa/about-recipient.fingerprint
           test "$(stat -c%s android/qa/about-recipient.asc)" -le 16384

@@ -24,22 +24,24 @@ def stage(root, output):
         take(str(p.relative_to(root)),f'tests-{i}.xml');cases.extend(ET.parse(p).getroot().iter('testcase'))
     expected={'sponsorNavigationAndLinksStayInsideTheTestHandler','largeTextStillScrollsToVersionAndPackage','returningFromAboutPreservesPendingGuess'}
     if len(cases)!=3 or {c.get('name') for c in cases}!=expected or any(c.get('classname')!='app.threadly.game.AboutScreenTest' or any(c.find(x) is not None for x in ['error','failure','skipped']) for c in cases):raise ValueError('Exact3case discovery required')
+    print('Private About evidence preflight: exact_cases=3 failures=0 errors=0 skipped=0 named_png_count=3')
     if sum(p.stat().st_size for p,_ in selected)>CAP-65536:raise ValueError('Evidence exceeds cap')
     sha=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
     if sha!=os.environ['GITHUB_SHA']:raise ValueError('Source mismatch')
     sdk=Path(os.environ['ANDROID_HOME']).resolve()
-    buildtools=sorted((sdk/'build-tools').iterdir(),key=lambda p:tuple(int(x) for x in p.name.split('.')) if re.fullmatch(r'\d+\.\d+\.\d+',p.name) else (0,))
-    tools=[p for p in buildtools if (p/'aapt').is_file() and (p/'apksigner').is_file()]
-    if not tools:raise ValueError('APK inspection tools missing')
-    tools=tools[-1]
+    tools=sdk/'build-tools/36.0.0'
+    if not all((tools/n).is_file() for n in ['aapt','apksigner']):raise ValueError('Pinned build-tools36.0.0 missing')
     def command(args):return subprocess.check_output([str(a) for a in args],cwd=root,text=True,stderr=subprocess.STDOUT,timeout=30).strip()
     apk=selected[0][0]
     badging=command([tools/'aapt','dump','badging',apk])
     package=re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",badging,re.M)
     if not package or package.group(1)!='com.frpboy.threadly.qa':raise ValueError('Wrong APK package')
     signer=command([tools/'apksigner','verify','--verbose','--print-certs',apk])
+    signer_count_one=bool(re.search(r'^Number of signers: 1$',signer,re.M))
     digests=re.findall(r'^Signer #\d+ certificate SHA-256 digest: ([0-9a-fA-F]{64})$',signer,re.M)
-    if len(digests)!=1:raise ValueError('Expected exactly one APK signing certificate')
+    if not signer_count_one or len(digests)!=1:
+        print(json.dumps({'diagnostic':'apk-signer-contract-mismatch','build_tools':'36.0.0','signer_count_one':signer_count_one,'legacy_digest_count':len(digests),'v2_format_present':bool(re.search(r'^V2 Signer: certificate SHA-256 digest:',signer,re.M))}))
+        raise ValueError('Expected exactly one APK signing certificate')
     sdkmin=re.search(r"^sdkVersion:'(\d+)'",badging,re.M);sdktarget=re.search(r"^targetSdkVersion:'(\d+)'",badging,re.M)
     if not sdkmin or not sdktarget:raise ValueError('APK SDK metadata missing')
     gradle=command(['gradle','--version']);java=command(['java','-version'])
