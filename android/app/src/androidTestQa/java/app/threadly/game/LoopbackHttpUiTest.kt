@@ -89,9 +89,13 @@ class LoopbackHttpUiTest {
     private fun snapshot(state: String, answer: String = "sentinel-answer") = """{"state":"$state","clue_number":2,"clues":[{"order":1,"text":"First clue"},{"order":2,"text":"Second clue"}],"guesses":["wrong"],"total_clues":2,"score_awarded":${if(state == "solved") 80 else 0},"answer":"$answer"}"""
     private fun daily() = Reply("GET", "/api/daily", 200, """{"puzzle_id":"$puzzle","title":"Synthetic only","total_clues":2}""")
     private fun progress(state: String) = Reply("POST", "/api/progress", 200, snapshot(state))
-    private fun start(vararg replies: Reply): GameViewModel {
+    private fun startFixture(vararg replies: Reply) {
         check(BuildConfig.API_BASE == "http://127.0.0.1:8765") { "QA origin must be exact device loopback" }
-        server = Fixture(replies.toList()); return vm()
+        server = Fixture(replies.toList())
+    }
+    private fun start(vararg replies: Reply): GameViewModel {
+        startFixture(*replies)
+        return vm()
     }
     private fun vm() = GameViewModel(HttpGameApi(BuildConfig.API_BASE), guest)
     private fun waitFor(text: String) { rule.waitUntilExactlyOneExists(hasText(text), 8000) }
@@ -129,19 +133,19 @@ class LoopbackHttpUiTest {
         rule.onNodeWithTag("guess_input").assertTextContains("answer"); rule.onNodeWithText("2.  Second clue").assertIsDisplayed(); server!!.verify()
     }
     @Test fun androidGuessServerErrorDoesNotReplayPost() = runBlocking {
-        start(Reply("POST", "/api/guess", 500, "{}", "answer"))
+        startFixture(Reply("POST", "/api/guess", 500, "{}", "answer"))
         val result = HttpGameApi(BuildConfig.API_BASE).guess(puzzle, guest, "answer")
         assertEquals(500, result.httpCode)
         server!!.verify(); assertEquals(1, server!!.requests.size)
     }
     @Test fun androidGuessLostResponseDoesNotReplayPost() = runBlocking {
-        start(Reply("POST", "/api/guess", 200, "", "answer", disconnectAfterRequest = true))
+        startFixture(Reply("POST", "/api/guess", 200, "", "answer", disconnectAfterRequest = true))
         try { HttpGameApi(BuildConfig.API_BASE).guess(puzzle, guest, "answer"); fail("expected IOException after response loss") }
         catch (_: IOException) {}
         server!!.verify(); assertEquals(1, server!!.requests.size)
     }
     @Test fun androidMalformedProgressIsRecoverableIoError() = runBlocking {
-        start(Reply("POST", "/api/progress", 200, """{"state":"unknown"}"""))
+        startFixture(Reply("POST", "/api/progress", 200, """{"state":"unknown"}"""))
         try { HttpGameApi(BuildConfig.API_BASE).progress(puzzle, guest); fail("expected IOException for malformed progress") }
         catch (_: IOException) {}
         server!!.verify(); assertEquals(1, server!!.requests.size)
