@@ -8,6 +8,11 @@ NAMES = ("loopback-resume.png", "loopback-solved.png", "loopback-exhausted.png",
 
 def stage(root, destination):
     root, destination = Path(root), Path(destination)
+    if root.is_symlink():
+        raise ValueError("symlink checkout root forbidden")
+    # Ancestors ABOVE the checkout are host layout, not selected evidence.
+    # Inspect only the checkout root and descendants, without resolving away links.
+    root = root.absolute()
     if destination.exists():
         raise ValueError("evidence destination must be new")
     selected = []
@@ -24,7 +29,7 @@ def stage(root, destination):
         raise ValueError("missing evidence")
     total = 0
     for source, relative in selected:
-        if source.is_symlink() or any(p.is_symlink() for p in source.parents if p != root.parent):
+        if source.is_symlink() or any(p.is_symlink() for p in source.parents if p == root or root in p.parents):
             raise ValueError("symlink evidence forbidden")
         if not source.is_file() or relative.suffix not in (".png", ".txt", ".xml"):
             raise ValueError("unexpected evidence type")

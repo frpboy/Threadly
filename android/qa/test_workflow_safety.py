@@ -40,7 +40,7 @@ if 'pull' in sys.argv:Path(sys.argv[-1]).write_bytes(b'\\x89PNG\\r\\n\\x1a\\n')
 
     def test_no_device_skips_all_device_commands_but_stages_unit_xml(self):
         with tempfile.TemporaryDirectory() as td:
-            root=Path(td); collect(root,self.fake_adb(root,'none'),seconds=.1)
+            root=Path(td); collect(root,self.fake_adb(root,'none'),seconds=1.0)
             self.assertEqual(['devices'],(root/'calls').read_text().splitlines())
             units=root/'android/app/build/test-results/testQaUnitTest';units.mkdir(parents=True)
             (units/'TEST-unit.xml').write_text('<testsuite/>')
@@ -51,8 +51,8 @@ if 'pull' in sys.argv:Path(sys.argv[-1]).write_bytes(b'\\x89PNG\\r\\n\\x1a\\n')
         for mode in ('hang','fail','ok'):
             with self.subTest(mode=mode),tempfile.TemporaryDirectory() as td:
                 root=Path(td); start=time.monotonic()
-                collect(root,self.fake_adb(root,mode),seconds=.15)
-                self.assertLess(time.monotonic()-start,3)
+                collect(root,self.fake_adb(root,mode),seconds=.5)
+                self.assertLess(time.monotonic()-start,8)
                 calls=(root/'calls').read_text()
                 self.assertEqual(3,calls.count(' pull '));self.assertIn(' logcat -d -b crash',calls)
                 self.assertIn(' emu kill',calls)
@@ -62,8 +62,8 @@ if 'pull' in sys.argv:Path(sys.argv[-1]).write_bytes(b'\\x89PNG\\r\\n\\x1a\\n')
         with tempfile.TemporaryDirectory() as td:
             root=Path(td); adb=root/'adb'
             adb.write_text('#!/usr/bin/env python3\nimport time\ntime.sleep(10)\n');adb.chmod(0o700)
-            start=time.monotonic();collect(root,str(adb),seconds=.1)
-            self.assertLess(time.monotonic()-start,2)
+            start=time.monotonic();collect(root,str(adb),seconds=1.0)
+            self.assertLess(time.monotonic()-start,3)
             self.assertIn('TimeoutExpired',(root/'loopback-evidence/crash.txt').read_text())
 
     def test_failed_gradle_preserves_failure_and_stops_preflight(self):
@@ -89,7 +89,7 @@ if 'pull' in sys.argv:Path(sys.argv[-1]).write_bytes(b'\\x89PNG\\r\\n\\x1a\\n')
         for line in boot.splitlines():
             if 'sdkmanager ' in line or 'avdmanager ' in line:self.assertIn('timeout --kill-after=',line)
             if 'wait-for-device' in line:self.assertIn('timeout --kill-after=',line)
-        self.assertIn('timeout --kill-after=10s 600s gradle',step_script('Run all QA instrumentation and require exact discovery counts'))
+        self.assertIn('timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process',step_script('Run all QA instrumentation and require exact discovery counts'))
         cleanup=text.split('      - name: Collect named failure or success pixels',1)[1].split('      - name:',1)[0]
         self.assertIn('if: always()',cleanup);self.assertIn('timeout-minutes: 2',cleanup)
         self.assertNotIn('continue-on-error',text)

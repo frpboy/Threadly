@@ -3,6 +3,7 @@ package app.threadly.game.data
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONException
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -10,13 +11,14 @@ import java.net.URL
 class HttpGameApi(private val baseUrl: String) : GameApi {
     private class Resp(val code: Int, val json: JSONObject?)
 
-    /** One retry on 5xx or IO error: /api/daily was seen returning 500 on a cold start. 4xx is never retried. */
+    /** Retry only reads. Guess POST may already have committed when its response fails. */
     private suspend fun call(method: String, path: String, body: JSONObject?): Resp = withContext(Dispatchers.IO) {
         var last: IOException? = null
-        for (attempt in 0..1) {
+        val retries = if (method == "GET" || path == "/api/progress") 1 else 0
+        for (attempt in 0..retries) {
             try {
                 val r = once(method, path, body)
-                if (r.code >= 500 && attempt == 0) continue
+                if (r.code >= 500 && attempt < retries) continue
                 return@withContext r
             } catch (e: IOException) { last = e }
         }
@@ -32,7 +34,10 @@ class HttpGameApi(private val baseUrl: String) : GameApi {
             if (body != null) {
                 c.doOutput = true
                 c.setRequestProperty("Content-Type", "application/json")
-                c.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+                val bytes = body.toString().toByteArray(Charsets.UTF_8)
+                // Streaming avoids HttpURLConnection silently replaying a buffered POST after response loss.
+                c.setFixedLengthStreamingMode(bytes.size)
+                c.outputStream.use { it.write(bytes) }
             }
             val code = c.responseCode
             val stream = if (code >= 400) c.errorStream else c.inputStream
@@ -46,13 +51,17 @@ class HttpGameApi(private val baseUrl: String) : GameApi {
         val r = call("GET", "/api/daily", null)
         val j = r.json ?: return null
         if (r.code != 200) return null
-        return Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5))
+        return try {
+            Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5))
+        } catch (_: JSONException) { throw IOException("Invalid puzzle response") }
     }
 
     override suspend fun progress(puzzleId: String, guestId: String): Progress? {
         val r = call("POST", "/api/progress", JSONObject().put("puzzle_id", puzzleId).put("guest_id", guestId))
         val j = r.json ?: return null
-        return if (r.code == 200) Progress.parse(j) else null
+        return if (r.code == 200) {
+            try { Progress.parse(j) } catch (_: JSONException) { throw IOException("Invalid progress response") }
+        } else null
     }
 
     // The client never sends a clue count: the server derives it from its own guess log.

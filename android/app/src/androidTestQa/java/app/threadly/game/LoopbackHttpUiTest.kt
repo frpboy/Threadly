@@ -8,6 +8,8 @@ import app.threadly.game.data.HttpGameApi
 import app.threadly.game.ui.GameScreen
 import app.threadly.game.ui.GameViewModel
 import java.io.FileInputStream
+import java.io.IOException
+import kotlinx.coroutines.runBlocking
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
@@ -29,7 +31,7 @@ class LoopbackHttpUiTest {
     private val puzzle = "00000000-0000-4000-8000-000000000001"
     private val guest = "00000000-0000-4000-8000-000000000002"
     private var server: Fixture? = null
-    private data class Reply(val method: String, val path: String, val status: Int, val body: String, val guess: String? = null)
+    private data class Reply(val method: String, val path: String, val status: Int, val body: String, val guess: String? = null, val disconnectAfterRequest: Boolean = false)
     private inner class Fixture(replies: List<Reply>) : AutoCloseable {
         val queue = LinkedBlockingQueue(replies)
         val failure = AtomicReference<Throwable?>(null)
@@ -43,6 +45,7 @@ class LoopbackHttpUiTest {
                 while (!stopped) {
                     val socket = try { listener.accept() } catch (e: java.net.SocketTimeoutException) { continue }
                     socket.use { s ->
+                        try {
                         s.soTimeout = 3000
                         val input = s.getInputStream().bufferedReader(Charsets.UTF_8)
                         val line = input.readLine() ?: error("missing request")
@@ -65,9 +68,15 @@ class LoopbackHttpUiTest {
                             if (expected.guess != null) check(body.getString("guess") == expected.guess)
                         }
                         requests.add(parts[1])
+                        if (expected.disconnectAfterRequest) return@use
                         val bytes = expected.body.toByteArray(Charsets.UTF_8)
                         s.getOutputStream().apply {
                             write("HTTP/1.1 ${expected.status} Fixture\r\nContent-Type: application/json\r\nCache-Control: private, no-store\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray()); write(bytes); flush()
+                        }
+                        } catch (t: Throwable) {
+                            // Publish fixture failures before socket close wakes the HTTP client.
+                            if (!stopped) failure.compareAndSet(null, t)
+                            throw t
                         }
                     }
                 }
@@ -118,6 +127,24 @@ class LoopbackHttpUiTest {
         val vm = start(daily(), progress("open"), Reply("POST", "/api/guess", 200, "{}", "answer"), Reply("POST", "/api/progress", 400, "{}"))
         rule.setContent { GameScreen(vm) }; waitFor("2.  Second clue"); submit(); waitFor("Couldn't refresh. Try again.")
         rule.onNodeWithTag("guess_input").assertTextContains("answer"); rule.onNodeWithText("2.  Second clue").assertIsDisplayed(); server!!.verify()
+    }
+    @Test fun androidGuessServerErrorDoesNotReplayPost() = runBlocking {
+        start(Reply("POST", "/api/guess", 500, "{}", "answer"))
+        val result = HttpGameApi(BuildConfig.API_BASE).guess(puzzle, guest, "answer")
+        assertEquals(500, result.httpCode)
+        server!!.verify(); assertEquals(1, server!!.requests.size)
+    }
+    @Test fun androidGuessLostResponseDoesNotReplayPost() = runBlocking {
+        start(Reply("POST", "/api/guess", 200, "", "answer", disconnectAfterRequest = true))
+        try { HttpGameApi(BuildConfig.API_BASE).guess(puzzle, guest, "answer"); fail("expected IOException after response loss") }
+        catch (_: IOException) {}
+        server!!.verify(); assertEquals(1, server!!.requests.size)
+    }
+    @Test fun androidMalformedProgressIsRecoverableIoError() = runBlocking {
+        start(Reply("POST", "/api/progress", 200, """{"state":"unknown"}"""))
+        try { HttpGameApi(BuildConfig.API_BASE).progress(puzzle, guest); fail("expected IOException for malformed progress") }
+        catch (_: IOException) {}
+        server!!.verify(); assertEquals(1, server!!.requests.size)
     }
     @Test fun mandatoryExternalIpv4AndIpv6ConnectionsFail() {
         // The firewall is scoped to this exact installed target UID, not adbd/root.

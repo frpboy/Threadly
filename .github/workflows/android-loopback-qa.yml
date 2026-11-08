@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: threadly-loopback-${{ github.ref }}
+  group: threadly-native-qualification-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   synthetic-loopback:
@@ -24,7 +24,7 @@ jobs:
           git rev-parse HEAD HEAD^{tree}
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
-          test "$(git rev-parse HEAD:apps/web)" = "bd3e62e8df2a88a0f632d8a9a15b19883f79b39b"
+          test "$(git rev-parse HEAD:apps/web)" = "ea75d38aacf7deaa3976d8c2205ef790682a5928"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
           grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle
@@ -38,8 +38,8 @@ jobs:
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
-          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
-          timeout --kill-after=10s 90s gradle -p android -PthreadlyTestBuildType=qa :app:dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
+          timeout --kill-after=10s 90s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           cat "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           grep -F 'androidx.compose.ui:ui-test-manifest:' "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           python3 - <<'PY'
@@ -127,7 +127,7 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
           export ANDROID_SERIAL=emulator-5554
-          timeout --kill-after=10s 600s gradle -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" -Pandroid.testInstrumentationRunnerArguments.class=app.threadly.game.GameScreenTest,app.threadly.game.LoopbackHttpUiTest :app:connectedQaAndroidTest --no-daemon
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" -Pandroid.testInstrumentationRunnerArguments.class=app.threadly.game.GameScreenTest,app.threadly.game.LoopbackHttpUiTest :app:connectedQaAndroidTest --no-daemon
       - name: Collect named failure or success pixels, then destroy emulator
         if: always()
         timeout-minutes: 2
@@ -143,16 +143,16 @@ jobs:
           units=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
           assert units, 'missing unit XML'
           unitcases=[c for p in units for c in E.parse(p).getroot().iter('testcase')]
-          assert len(unitcases)==21, 'unexpected unit discovery '+str(len(unitcases))
+          assert len(unitcases)==24, 'unexpected unit discovery '+str(len(unitcases))
           assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in unitcases)
           paths=glob.glob('android/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
           assert paths, 'missing instrumentation XML'
           cases=[c for p in paths for c in E.parse(p).getroot().iter('testcase')]
           qa=[c for c in cases if c.get('classname','').endswith('LoopbackHttpUiTest')]
           old=[c for c in cases if c.get('classname','').endswith('GameScreenTest')]
-          assert len(qa)==5 and len(old)==7 and len(cases)==12, [(c.get('classname'),c.get('name')) for c in cases]
+          assert len(qa)==8 and len(old)==7 and len(cases)==15, [(c.get('classname'),c.get('name')) for c in cases]
           assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in cases)
-          print('PASS exact instrumentation discovery: 5 real-HTTP loopback + 7 existing fake-API UI, zero skip/failure/error')
+          print('PASS exact instrumentation discovery: 8 real-HTTP loopback + 7 existing fake-API UI, zero skip/failure/error')
           PY
           for name in loopback-resume loopback-solved loopback-exhausted; do
             test -s "loopback-evidence/$name.png"

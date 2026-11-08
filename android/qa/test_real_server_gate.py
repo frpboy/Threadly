@@ -57,7 +57,14 @@ class RealGateTest(unittest.TestCase):
         self.assertNotIn('secrets.',real);self.assertNotIn('preload',real)
         self.assertIn('reverse tcp:8765 tcp:3189',real)
         self.assertIn('reverse --remove tcp:8765',real)
-        self.assertIn('len(cases)==4',real);self.assertIn('len(cases)==12',synthetic)
+        self.assertIn('len(cases)==4',real);self.assertIn('len(cases)==15',synthetic)
+        self.assertIn('len(qa)==8',synthetic)
+        for workflow in (real, synthetic):
+            self.assertIn('len(unitcases)==24',workflow)
+            self.assertIn('ea75d38aacf7deaa3976d8c2205ef790682a5928',workflow)
+            self.assertIn('group: threadly-native-qualification-${{ github.ref }}',workflow)
+            self.assertIn('cancel-in-progress: false',workflow)
+            self.assertNotIn('bd3e62e8df2a88a0f632d8a9a15b19883f79b39b',workflow)
         self.assertIn("steps.evidence_bound.outcome == 'success'",real)
         db=(ROOT/'android/qa/real_db_gate.cjs').read_text()
         for token in ('guesses_puzzle_player_clue_uq','database must be empty','gamesPlayed,1','scores[0].score,80','db.guess.count(),8'):

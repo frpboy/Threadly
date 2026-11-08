@@ -36,4 +36,16 @@ class HelpersTest(unittest.TestCase):
                 with self.assertRaises(ValueError):stage(root,root/'out')
                 self.assertFalse((root/'out').exists())
 
+    def test_stage_allows_symlink_above_checkout_but_rejects_links_inside(self):
+        with tempfile.TemporaryDirectory() as td:
+            base=pathlib.Path(td); real=base/'real';real.mkdir(); alias=base/'alias';alias.symlink_to(real,target_is_directory=True)
+            root=alias/'checkout';shots=root/'loopback-evidence';shots.mkdir(parents=True);(shots/'crash.txt').write_text('synthetic')
+            self.assertEqual(1,len(stage(root,base/'allowed')))
+            linked_root=base/'linked-checkout';linked_root.symlink_to(root,target_is_directory=True)
+            with self.assertRaises(ValueError):stage(linked_root,base/'root-rejected')
+            (shots/'crash.txt').unlink();shots.rmdir();outside=base/'outside';outside.mkdir();(outside/'crash.txt').write_text('synthetic')
+            shots.symlink_to(outside,target_is_directory=True)
+            with self.assertRaises(ValueError):stage(root,base/'inner-rejected')
+            self.assertFalse((base/'inner-rejected').exists())
+
 if __name__=='__main__':unittest.main()
