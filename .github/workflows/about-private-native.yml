@@ -1,0 +1,132 @@
+name: Threadly private About native qualification
+on:
+  push:
+    branches: [android/about-private-qa-20261109]
+permissions:
+  contents: read
+concurrency:
+  group: threadly-about-private-native
+  cancel-in-progress: false
+jobs:
+  about:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_OPTIONS: ''
+      NODE_PATH: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validate recipient and source before building
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = android/about-private-qa-20261109
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "${THREADLY_KEYSTORE_PATH:-}"
+          test -f android/qa/about-recipient.asc
+          test -f android/qa/about-recipient.fingerprint
+          test "$(stat -c%s android/qa/about-recipient.asc)" -le 16384
+          FINGERPRINT=$(cat android/qa/about-recipient.fingerprint)
+          test "$FINGERPRINT" = 0D062D5EBE73580835CC4A82EBA256F9D8C0EE48
+          export GNUPGHOME="$RUNNER_TEMP/about-public-keyring"
+          mkdir -m 700 "$GNUPGHOME"
+          cp android/qa/about-recipient.asc "$RUNNER_TEMP/recipient.asc"
+          grep -Fx -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$RUNNER_TEMP/recipient.asc"
+          ! grep -q 'PRIVATE KEY' "$RUNNER_TEMP/recipient.asc"
+          gpg --batch --import "$RUNNER_TEMP/recipient.asc"
+          test "$(gpg --batch --with-colons --list-keys | awk -F: '$1=="pub"{primary=1;count++} $1=="fpr"&&primary{print $10;primary=0} END{if(count!=1)exit 1}')" = "$FINGERPRINT"
+          gpg --version | head -3
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: Compile only new About QA target
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:assembleQa :app:assembleQaAndroidTest --no-daemon --no-build-cache
+      - name: Boot API36 and enforce mandatory QA-app IPv4 and IPv6 fence
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-android" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          timeout --kill-after=10s 300s sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | timeout --kill-after=10s 60s avdmanager create avd -n loopback -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/loopback.avd" --force
+          emulator -avd loopback -port 5554 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
+          export ANDROID_SERIAL=emulator-5554
+          # Every adb invocation is bounded, including polls, restart and firewall calls.
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          timeout --kill-after=5s 180s adb -s "$ANDROID_SERIAL" wait-for-device
+          deadline=$((SECONDS + 240))
+          while (( SECONDS < deadline )); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
+          test "${ready:-0}" = 1
+          adb root; timeout --kill-after=5s 60s adb -s "$ANDROID_SERIAL" wait-for-device
+          adb shell id -u | tr -d '\r' | grep -Fx 0
+          # Install before fencing so the exact target UID is known. Instrumentation runs in this target UID.
+          timeout --kill-after=5s 120s adb -s "$ANDROID_SERIAL" install -r android/app/build/outputs/apk/qa/app-qa.apk
+          mkdir -p about-evidence
+          adb shell cmd package list packages -U com.frpboy.threadly.qa > about-evidence/package-uid.txt
+          cat about-evidence/package-uid.txt
+          if ! QA_UID=$(python3 android/qa/parse_uid.py < about-evidence/package-uid.txt); then
+            echo 'No verified target UID; refusing to install any firewall rule or run instrumentation' >&2
+            exit 1
+          fi
+          echo "Verified target package UID: $QA_UID"
+          echo "THREADLY_QA_UID=$QA_UID" >> "$GITHUB_ENV"
+          # Restrict only the target application UID, not adbd/root control traffic.
+          # No established-connection exemption lets the app escape using an existing socket.
+          for bin in iptables ip6tables; do
+            adb shell "$bin -N THREADLY_QA_EGRESS"
+            adb shell "$bin -A THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -A THREADLY_QA_EGRESS -j REJECT"
+            adb shell "$bin -I OUTPUT 1 -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C OUTPUT -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -C THREADLY_QA_EGRESS -j REJECT"
+          done
+          # No skips, no ignored firewall failures, no production/DB/secret supplied.
+      - name: Run only3new About fixture cases
+        timeout-minutes: 6
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_SERIAL=emulator-5554
+          timeout --kill-after=10s 300s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" -Pandroid.testInstrumentationRunnerArguments.class=app.threadly.game.AboutScreenTest :app:connectedQaAndroidTest --no-daemon --no-build-cache
+          mkdir -p about-evidence
+          for name in about-overview about-sponsor about-large-text; do
+            timeout --kill-after=5s 20s adb -s emulator-5554 pull "/data/local/tmp/$name.png" "about-evidence/$name.png"
+          done
+      - name: Bound and encrypt private evidence before upload
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          FINGERPRINT=$(cat android/qa/about-recipient.fingerprint)
+          python3 android/qa/stage_about_private.py
+          gpg --batch --yes --trust-model always --recipient "$FINGERPRINT" --cipher-algo AES256 --force-mdc --encrypt --output "$RUNNER_TEMP/about-private.tar.gz.gpg" "$RUNNER_TEMP/about-private.tar.gz"
+          test "$(stat -c%s "$RUNNER_TEMP/about-private.tar.gz.gpg")" -le 22020096
+          rm "$RUNNER_TEMP/about-private.tar.gz"
+          sha256sum "$RUNNER_TEMP/about-private.tar.gz.gpg"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: threadly-about-private-encrypted
+          path: ${{ runner.temp }}/about-private.tar.gz.gpg
+          if-no-files-found: error
+          retention-days: 1
+      - name: Destroy only owned emulator and public recipient scratch
+        if: always()
+        timeout-minutes: 1
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout --kill-after=5s 15s adb -s emulator-5554 emu kill || true
+          rm -f "$RUNNER_TEMP/about-private.tar.gz" "$RUNNER_TEMP/recipient.asc"
+          rm -rf "$RUNNER_TEMP/about-public-keyring"

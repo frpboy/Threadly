@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "fix/android-progress-api-20261107": false
+      "fix/android-progress-api-20261107": false,
+      "android/about-private-qa-20261109": false
     }
   }
 }
