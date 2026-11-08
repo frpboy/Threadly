@@ -81,9 +81,9 @@ class AboutScreenTest {
             }
         }
         rule.onNodeWithText("Version").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").assertIsDisplayed()
+        rule.onNodeWithText("${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Package name").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("com.frpboy.threadly.qa").assertIsDisplayed()
+        rule.onNodeWithText("com.frpboy.threadly.qa").performScrollTo().assertIsDisplayed()
         shot("about-large-text")
         rule.onNodeWithText("Back to Threadly").performScrollTo().assertIsDisplayed()
     }
