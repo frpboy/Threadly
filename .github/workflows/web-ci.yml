@@ -26,6 +26,11 @@ jobs:
   web:
     name: Web tests, typecheck and production build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: ""
+      NODE_PATH: ""
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -36,8 +41,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "24"
-          cache: npm
-          cache-dependency-path: package-lock.json
 
       - name: Install web dependencies
         run: npm ci --workspace apps/web
