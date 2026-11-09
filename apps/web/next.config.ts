@@ -10,7 +10,6 @@ export default withSentryConfig(nextConfig, {
   org: "k4nn4n",
   project: "threadly",
   widenClientFileUpload: true,
-  hideSourceMaps: true,
   disableLogger: true,
 });
 

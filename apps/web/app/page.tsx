@@ -349,7 +349,7 @@ export default function Home() {
                 autoComplete="off"
                 autoCapitalize="off"
                 spellCheck={false}
-                disabled={isSubmitting}
+                readOnly={isSubmitting}
                 className="w-full py-4 px-5 bg-background shadow-neumorphic-inset border border-border-subtle focus:border-[#FF4500]/50 focus-visible:ring-2 focus-visible:ring-[#FF4500]/40 outline-none text-sm text-foreground/80 rounded-xl transition-all disabled:opacity-60"
               />
             </div>

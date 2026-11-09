@@ -10,9 +10,11 @@ permissions:
   contents: write
 jobs:
   remediate:
+    # This reviewed branch carries a fixed lockfile. Do not regenerate it on push or PR sync.
+    # Scanner/review checks remain separate and unchanged.
     if: >-
-      (github.event_name == 'push' && github.event.head_commit.message != 'chore(deps): refresh lockfile after audit fix')
-      || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'security/dependency-remediation-'))
+      (github.event_name == 'push' && github.ref_name != 'security/dependency-remediation-nextjs' && github.event.head_commit.message != 'chore(deps): refresh lockfile after audit fix')
+      || (github.event_name == 'pull_request' && github.head_ref != 'security/dependency-remediation-nextjs' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.head_ref, 'security/dependency-remediation-'))
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
