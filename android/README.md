@@ -20,7 +20,9 @@ Guess POST is not automatically retried by the proposed HTTP correction because 
 gradle -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest --no-daemon
 ```
 
-Prior source06d85 passed21JVM+4native actual Next/PostgreSQL checks in run42400540649. Current local HTTP candidate adds3JVM cases: original3RED, corrected desktop-JVM24GREEN using the exact Kotlin2.1.21 compiler. This is not an Android Gradle/API36 runtime result. New qualification workflows must discover exactly24JVM cases,8native synthetic-HTTP cases+7fake-API UI cases, and4actual-Next/PostgreSQL native cases. A future workflow success is required before these new counts are called device-qualified.
+PR #27 head `06fc862988409f42f2124a941bc1a7bb7151dab9` at this checkpoint passed24JVM+4actual-Next/PostgreSQL native checks in [run42436508872](https://github.com/frpboy/Threadly/actions/runs/42436508872/job/128597293927). SQL poststate and named synthetic gameplay captures were inspected separately. This is loopback QA, not provider sign-in or a production phone-backend result.
+
+The separate synthetic-loopback workflow on the SAME source failed at `adb root` before native execution in [run42436508860](https://github.com/frpboy/Threadly/actions/runs/42436508860/job/128596392863). Its24JVM tests passed, but zero native cases ran there. The intended inventory remains8synthetic-HTTP+7fake-API UI cases; all15 are still unqualified on this head. The adb failure's cause is unknown. Do not count a workflow dispatch or JVM success as Android native qualification.
 
 The real-server workflow creates an empty disposable local PostgreSQL database, applies the reviewed draft index only there, builds actual Next, tests native gameplay and exact SQL poststate, then removes its owned container and private credential files. The synthetic-loopback workflow deliberately uses a local fixture, not real cloud backend/provider evidence. Named resume/solved/exhausted screenshots must be inspected separately; green XML does not establish visual correctness.
 
