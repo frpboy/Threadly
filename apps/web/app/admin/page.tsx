@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 
 interface PuzzleItem {
@@ -21,19 +21,8 @@ export default function AdminDashboard() {
   const [token, setToken] = useState("");
   const [authFailed, setAuthFailed] = useState(false);
 
-  useEffect(() => {
-    // Initialize theme from storage
-    const savedTheme = localStorage.getItem("threadly_theme") || "dark";
-    setTheme(savedTheme);
-    document.documentElement.setAttribute("data-theme", savedTheme);
-
-    const savedToken = sessionStorage.getItem("threadly_admin_token");
-    if (savedToken) setToken(savedToken);
-    fetchPuzzles(savedToken || undefined);
-  }, []);
-
-  const fetchPuzzles = (explicitToken?: string) => {
-    const activeToken = explicitToken ?? token;
+  const fetchPuzzles = useCallback((explicitToken = "") => {
+    const activeToken = explicitToken;
     fetch("/api/admin/puzzles", {
       headers: activeToken ? { Authorization: `Bearer ${activeToken}` } : {},
     })
@@ -50,7 +39,18 @@ export default function AdminDashboard() {
         console.error(err);
         setLoading(false);
       });
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initialize theme from storage
+    const savedTheme = localStorage.getItem("threadly_theme") || "dark";
+    setTheme(savedTheme);
+    document.documentElement.setAttribute("data-theme", savedTheme);
+
+    const savedToken = sessionStorage.getItem("threadly_admin_token");
+    if (savedToken) setToken(savedToken);
+    fetchPuzzles(savedToken || "");
+  }, [fetchPuzzles]);
 
   const handleGenerateAI = async () => {
     setGenerating(true);
@@ -62,7 +62,7 @@ export default function AdminDashboard() {
       if (res.status === 401) { setAuthFailed(true); alert("Unauthorized - check your admin token"); return; }
       const data = await res.json();
       if (data.success) {
-        fetchPuzzles();
+        fetchPuzzles(token);
       } else {
         alert("Generation failed: " + (data.error || "Unknown error"));
       }
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
       if (res.status === 401) { setAuthFailed(true); alert("Unauthorized - check your admin token"); return; }
       const data = await res.json();
       if (data.success) {
-        fetchPuzzles();
+        fetchPuzzles(token);
       } else {
         alert("Publish failed: " + (data.error || "Unknown error"));
       }
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
                   sessionStorage.setItem("threadly_admin_token", token);
                   setAuthFailed(false);
                   setLoading(true);
-                  fetchPuzzles();
+                  fetchPuzzles(token);
                 }}
                 className="px-4 py-2 bg-[#FF4500] text-white text-xs font-bold uppercase rounded-xl cursor-pointer"
               >
