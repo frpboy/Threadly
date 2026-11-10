@@ -2,7 +2,7 @@
 import os,sys,pathlib,json,subprocess,xml.etree.ElementTree as E
 from native_receipt import receipt
 sys.path.insert(0,str(pathlib.Path(__file__).resolve().parents[1]))
-from parse_uid import parse_uid
+from installed_uid import installed_uid
 
 def main():
     root=pathlib.Path.cwd();state=pathlib.Path(sys.argv[1]);mode=sys.argv[2]
@@ -17,7 +17,7 @@ def main():
         if result.returncode:raise ValueError('Owned emulator command failed')
         return result.stdout
     # Gradle connected tests may uninstall the target. Direct instrumentation never reinstalls.
-    actual=parse_uid(adb('shell','cmd','package','list','packages','-U','com.frpboy.threadly.qa'))
+    actual=installed_uid(adb('shell','cmd','package','list','packages','-U','com.frpboy.threadly.qa'))
     print('Verified live target UID '+str(actual)+'; fenced UID '+uid)
     if str(actual)!=uid:raise ValueError('Target package UID changed; refusing native execution')
     for binary in ['iptables','ip6tables']:

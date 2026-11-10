@@ -108,7 +108,7 @@ jobs:
           mkdir -p loopback-evidence
           adb shell cmd package list packages -U com.frpboy.threadly.qa > loopback-evidence/package-uid.txt
           cat loopback-evidence/package-uid.txt
-          if ! QA_UID=$(python3 android/qa/parse_uid.py < loopback-evidence/package-uid.txt); then
+          if ! QA_UID=$(python3 android/qa/beta/installed_uid.py < loopback-evidence/package-uid.txt); then
             echo 'No verified target UID; refusing to install any firewall rule or run instrumentation' >&2
             exit 1
           fi

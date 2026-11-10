@@ -12,7 +12,7 @@ class RunNativeTest(unittest.TestCase):
                 calls.append(argv)
                 class Result:returncode=0;stdout=''
                 r=Result()
-                if 'packages' in argv:r.stdout='package:com.frpboy.threadly.qa uid:'+('10151' if wrong_uid else '10150')+'\n'
+                if 'packages' in argv:r.stdout='package:com.frpboy.threadly.qa uid:'+('10152' if wrong_uid else '10150')+'\npackage:com.frpboy.threadly.qa.test uid:10151\n'
                 elif 'ip6tables' in argv and fail_v6:r.returncode=1
                 elif 'instrumentation' in argv:r.stdout='instrumentation:com.frpboy.threadly.qa.test/androidx.test.runner.AndroidJUnitRunner (target=com.frpboy.threadly.qa)\n'
                 elif 'instrument' in argv:
