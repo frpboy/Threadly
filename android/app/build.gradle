@@ -3,6 +3,15 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
+def betaApi = providers.gradleProperty('threadlyBetaApiBase').orNull
+if (betaApi != null && (!betaApi.matches('https://[a-zA-Z0-9.-]+') || betaApi == 'https://threadly-ruddy.vercel.app')) {
+    throw new GradleException('Native beta requires a dedicated HTTPS test target')
+}
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.toLowerCase().contains('release') } && betaApi == null) {
+        throw new GradleException('No verified native beta backend supplied; refusing release build')
+    }
+}
 android {
     namespace 'app.threadly.game'
     compileSdk 36
@@ -11,9 +20,9 @@ android {
         minSdk 24
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         targetSdk 36
-        versionCode 1
-        versionName '0.2.0'
-        buildConfigField 'String', 'API_BASE', '"https://threadly-ruddy.vercel.app"'
+        versionCode 2
+        versionName '0.2.1-beta.1'
+        buildConfigField 'String', 'API_BASE', '"' + (betaApi ?: 'https://native-beta-not-configured.invalid') + '"'
     }
     buildFeatures { compose true; buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }

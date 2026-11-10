@@ -1,0 +1,183 @@
+name: Native beta exact-source and API36 qualification (not release)
+on:
+  push:
+    branches: ['native/secure-beta-20261110']
+    paths: ['android/**', 'apps/web/**', '.github/workflows/native-beta-compile.yml']
+permissions:
+  contents: read
+concurrency:
+  group: threadly-beta-compile-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NODE_OPTIONS: ''
+      NODE_PATH: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Assert owned candidate and absence of signing credentials
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF_NAME" = native/secure-beta-20261110
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "${THREADLY_KEYSTORE_PATH:-}"
+          git rev-parse HEAD HEAD^{tree}
+          test "$(find apps/web -maxdepth 2 -name 'middleware.*' | wc -l)" = 0
+          test -f apps/web/proxy.ts
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+      - name: Install, typecheck, unit test and production-build exact source
+        timeout-minutes: 9
+        env:
+          DATABASE_URL: postgresql://none@127.0.0.1:59999/none
+          THREADLY_NATIVE_BETA: isolated-synthetic-only
+          THREADLY_BETA_SYNTHETIC_ONLY: 'true'
+          THREADLY_BETA_TARGET_ID: threadly-native-beta-compile-not-deployed
+          THREADLY_BETA_EXPIRES_AT_MS: '0'
+        run: |
+          set -euo pipefail
+          timeout --kill-after=10s 150s npm ci --workspace apps/web
+          timeout --kill-after=10s 60s npx prisma generate --schema apps/web/prisma/schema.prisma
+          timeout --kill-after=10s 60s npm exec --workspace apps/web tsc -- --noEmit
+          timeout --kill-after=10s 60s node --experimental-strip-types --experimental-loader ./android/qa/beta/loader.mjs --test apps/web/services/nativeBeta/deviceAccess.test.mjs android/qa/beta/unit.test.mjs
+          timeout --kill-after=10s 240s bash -c 'cd apps/web && node scripts/build-verified.mjs'
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+      - name: Compile and run all JVM tests, QA APK and instrumented tests
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          timeout --kill-after=10s 650s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest --no-daemon
+          python3 - <<'PY'
+          import glob,xml.etree.ElementTree as E
+          paths=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
+          cases=[c for p in paths for c in E.parse(p).getroot().iter('testcase')]
+          assert len(cases)>=29
+          assert not any(c.find(s) is not None for c in cases for s in ('failure','error','skipped'))
+          beta=[c for c in cases if c.get('classname')=='app.threadly.game.BetaHttpTest']
+          assert len(beta)==5
+          print('JVM tests:',len(cases),'beta:',len(beta),'no failures/errors/skips')
+          PY
+      - name: Start owned disposable beta database and actual Next server
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          timeout --kill-after=5s 150s python3 android/qa/local_postgres.py start "$RUNNER_TEMP/threadly-local-db.json"
+          timeout --kill-after=5s 45s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db push --schema apps/web/prisma/schema.prisma --skip-generate
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/drafts/guess_player_key.up.sql
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/beta-drafts/native_device.sql
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/beta/fixture.cjs seed "$RUNNER_TEMP/threadly-beta-fixture.json"
+          timeout --kill-after=5s 55s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" python3 android/qa/beta/server.py start "$RUNNER_TEMP/threadly-beta-server.json" "$RUNNER_TEMP/threadly-beta-fixture.json"
+      - name: Boot API36 and enforce mandatory QA-app IPv4 and IPv6 fence
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-android" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          timeout --kill-after=10s 300s sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | timeout --kill-after=10s 60s avdmanager create avd -n loopback -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/loopback.avd" --force
+          emulator -avd loopback -port 5554 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
+          export ANDROID_SERIAL=emulator-5554
+          # Every adb invocation is bounded, including polls, restart and firewall calls.
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          timeout --kill-after=5s 180s adb -s "$ANDROID_SERIAL" wait-for-device
+          deadline=$((SECONDS + 240))
+          while (( SECONDS < deadline )); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
+          test "${ready:-0}" = 1
+          adb root; timeout --kill-after=5s 60s adb -s "$ANDROID_SERIAL" wait-for-device
+          adb shell id -u | tr -d '\r' | grep -Fx 0
+          # Install before fencing so the exact target UID is known. Instrumentation runs in this target UID.
+          timeout --kill-after=5s 120s adb -s "$ANDROID_SERIAL" install -r android/app/build/outputs/apk/qa/app-qa.apk
+          mkdir -p loopback-evidence
+          adb shell cmd package list packages -U com.frpboy.threadly.qa > loopback-evidence/package-uid.txt
+          cat loopback-evidence/package-uid.txt
+          if ! QA_UID=$(python3 android/qa/parse_uid.py < loopback-evidence/package-uid.txt); then
+            echo 'No verified target UID; refusing to install any firewall rule or run instrumentation' >&2
+            exit 1
+          fi
+          echo "Verified target package UID: $QA_UID"
+          echo "THREADLY_QA_UID=$QA_UID" >> "$GITHUB_ENV"
+          # Restrict only the target application UID, not adbd/root control traffic.
+          # No established-connection exemption lets the app escape using an existing socket.
+          for bin in iptables ip6tables; do
+            adb shell "$bin -N THREADLY_QA_EGRESS"
+            adb shell "$bin -A THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -A THREADLY_QA_EGRESS -j REJECT"
+            adb shell "$bin -I OUTPUT 1 -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C OUTPUT -m owner --uid-owner $QA_UID -j THREADLY_QA_EGRESS"
+            adb shell "$bin -C THREADLY_QA_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -C THREADLY_QA_EGRESS -j REJECT"
+          done
+          # No skips, no ignored firewall failures, no production/DB/secret supplied.
+      - name: Reverse only the approved loopback API port
+        timeout-minutes: 1
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout --kill-after=5s 20s adb -s emulator-5554 reverse tcp:8765 tcp:3189
+          timeout --kill-after=5s 20s adb -s emulator-5554 reverse --list | grep -E ' tcp:8765 tcp:3189$'
+      - name: Native actual-Activity enrollment and gameplay, then real Keystore recreation
+        timeout-minutes: 11
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH" ANDROID_SERIAL=emulator-5554
+          timeout --kill-after=5s 20s adb -s emulator-5554 shell pm clear com.frpboy.threadly.qa | grep -Fx Success
+          timeout --kill-after=10s 320s python3 android/qa/beta/run_native.py "$RUNNER_TEMP/threadly-beta-fixture.json" enrollment
+          timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/beta/fixture.cjs verify "$RUNNER_TEMP/threadly-beta-fixture.json"
+          timeout --kill-after=10s 320s python3 android/qa/beta/run_native.py "$RUNNER_TEMP/threadly-beta-fixture.json" keystore
+          for name in beta-enrollment-empty beta-open-first beta-wrong-second beta-solved; do
+            timeout --kill-after=5s 20s adb -s emulator-5554 pull "/data/local/tmp/$name.png" "beta-evidence/$name.png"
+            test -s "beta-evidence/$name.png"
+          done
+      - name: Stop only owned runtime resources and private fixture credentials
+        if: always()
+        timeout-minutes: 2
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          cleanup=0
+          timeout --kill-after=5s 10s adb -s emulator-5554 reverse --remove tcp:8765 || true
+          timeout --kill-after=5s 15s python3 android/qa/beta/server.py stop "$RUNNER_TEMP/threadly-beta-server.json" || cleanup=1
+          timeout --kill-after=5s 40s python3 android/qa/local_postgres.py stop "$RUNNER_TEMP/threadly-local-db.json" || cleanup=1
+          timeout --kill-after=5s 10s adb -s emulator-5554 emu kill || true
+          rm -f "$RUNNER_TEMP/threadly-beta-fixture.json"
+          test ! -e "$RUNNER_TEMP/threadly-local-db.json" || cleanup=1
+          test ! -e "$RUNNER_TEMP/threadly-beta-server.json" || cleanup=1
+          exit "$cleanup"
+      - name: Stage bounded allowlisted synthetic evidence only
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as E
+          root=Path('beta-evidence')
+          names={'enrollment.xml','keystore.xml','beta-enrollment-empty.png','beta-open-first.png','beta-wrong-second.png','beta-solved.png'}
+          assert {p.name for p in root.iterdir()}==names
+          assert sum(p.stat().st_size for p in root.iterdir())<8*1024*1024
+          for name in ['enrollment','keystore']:
+              cases=list(E.parse(root/(name+'.xml')).getroot().iter('testcase'))
+              assert len(cases)==1
+          print('PASS bounded synthetic evidence: 2 native XML receipts,4 named captures; no APK/private state/logs')
+          PY
+      - name: Upload synthetic QA pixels and test receipts only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-beta-qualification-${{ github.sha }}
+          path: beta-evidence
+          if-no-files-found: error
+          retention-days: 3

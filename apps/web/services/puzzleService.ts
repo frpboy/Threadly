@@ -39,7 +39,7 @@ export async function getDailyPuzzle(today: Date) {
   }
 
   // Fallback 2: If database is completely empty, seed a default puzzle
-  if (!puzzle) {
+  if (!puzzle && process.env.THREADLY_NATIVE_BETA === undefined) {
     puzzle = await db.puzzle.create({
       data: {
         title: "Popular Tech stack connection",

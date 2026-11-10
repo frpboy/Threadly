@@ -4,6 +4,8 @@ import app.threadly.game.data.GameApi
 import app.threadly.game.data.GameState
 import app.threadly.game.data.Progress
 import java.io.IOException
+import app.threadly.game.data.PendingGuessException
+import app.threadly.game.data.AccessDeniedException
 
 sealed interface UiState {
     data object Loading : UiState
@@ -23,6 +25,8 @@ class GameController(private val api: GameApi, private val guestId: String) {
         val p = api.progress(daily.puzzleId, guestId)
             ?: return UiState.Error("Couldn't load your progress. Try again.")
         render(daily.puzzleId, daily.title, p, "")
+    } catch (e: AccessDeniedException) {
+        UiState.Error("Beta access expired or was revoked. Use a new invitation to re-enroll.")
     } catch (e: IOException) {
         UiState.Error("No connection. Check your network and try again.")
     }
@@ -46,6 +50,10 @@ class GameController(private val api: GameApi, private val guestId: String) {
                 }
                 else -> current.copy(notice = "Couldn't check that guess. Try again.", submitting = false)
             }
+        } catch (e: AccessDeniedException) {
+            UiState.Error("Beta access expired or was revoked. Use a new invitation to re-enroll.")
+        } catch (e: PendingGuessException) {
+            current.copy(notice = "Confirm your pending guess first: ${e.pendingGuess}", submitting = false)
         } catch (e: IOException) {
             current.copy(notice = "No connection. Try again.", submitting = false)
         }

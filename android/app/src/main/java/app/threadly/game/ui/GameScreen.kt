@@ -27,14 +27,36 @@ private val Bg = Color(0xFF12141C)
 private val Card = Color(0xFF1E2230)
 
 @Composable
-fun GameScreen(vm: GameViewModel) {
+fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val pending by vm.pending.collectAsStateWithLifecycle()
+    var confirmDiscard by remember { mutableStateOf(false) }
+    var confirmEnroll by remember { mutableStateOf(false) }
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
             Modifier.fillMaxSize().background(Bg).safeDrawingPadding()
                 .verticalScroll(rememberScrollState()).padding(20.dp),
         ) {
             Text("Threadly", color = Color.White, fontSize = 28.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+
+            onReenroll?.let { action ->
+                TextButton(enabled = state !is UiState.Loading && (state !is UiState.Playing || !(state as UiState.Playing).submitting), onClick = { confirmEnroll = true }) { Text("Re-enroll") }
+                if (confirmEnroll) AlertDialog(onDismissRequest = { confirmEnroll = false }, title = { Text("Use a new invitation?") },
+                    text = { Text("Ask for a replacement invitation first. A successful new enrollment replaces this device credential AND any saved pending guess. The old guess may already have counted. Your existing beta progress stays on the server, but does not transfer to the new device credential.") },
+                    confirmButton = { TextButton(onClick = { confirmEnroll = false; action() }) { Text("Enter new invitation") } },
+                    dismissButton = { TextButton(onClick = { confirmEnroll = false }) { Text("Cancel") } })
+            }
+            pending?.let { saved ->
+                Text("Pending guess: ${saved.text}. Its response was not confirmed.", color = Color(0xFFFFD479))
+                Row {
+                    TextButton(enabled = state is UiState.Playing && (state as UiState.Playing).puzzleId == saved.puzzleId && !(state as UiState.Playing).submitting, onClick = vm::retryPending) { Text("Retry same request") }
+                    TextButton(enabled = state !is UiState.Loading && (state !is UiState.Playing || !(state as UiState.Playing).submitting), onClick = { confirmDiscard = true }) { Text("Discard pending") }
+                }
+            }
+            if (confirmDiscard) AlertDialog(onDismissRequest = { confirmDiscard = false }, title = { Text("Discard uncertain guess?") },
+                text = { Text("This guess may already have counted. Discarding does not undo it. Threadly will reload saved progress before you can guess again. Retrying the same request is safer if you still want its result.") },
+                confirmButton = { TextButton(onClick = { confirmDiscard = false; vm.discardPending() }) { Text("Discard and reload") } },
+                dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text("Cancel") } })
             Spacer(Modifier.height(12.dp))
             when (val s = state) {
                 UiState.Loading -> Text("Loading today's puzzle...", color = Color(0xFFAAB0C0))

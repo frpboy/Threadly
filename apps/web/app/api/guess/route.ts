@@ -1,3 +1,6 @@
+import { boundedJson } from "@/services/nativeBeta/body";
+import { betaTransaction, validRequestId, RequestConflict } from "@/services/nativeBeta/guessRequest";
+import { betaEnabled, nativePrincipal } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -18,17 +21,22 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
 
 export async function POST(req: NextRequest) {
   try {
+    const beta = betaEnabled();
+    const device = beta ? await nativePrincipal(req) : null;
+    if (beta && !device) return privateJson({ error: "Unauthorized" }, { status: 401 });
     // clues_revealed from the client is ignored: the server derives it from its own guess log.
     let body: unknown;
     try {
-      body = await req.json();
+      body = beta ? await boundedJson(req) : await req.json();
     } catch {
       return privateJson({ error: "Request body must be valid JSON" }, { status: 400 });
     }
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
       return privateJson({ error: "Request body must be a JSON object" }, { status: 400 });
     }
-    const { puzzle_id, guess, guest_id } = body as Record<string, unknown>;
+    const { puzzle_id, guess, guest_id: claimedGuestId, request_id } = body as Record<string, unknown>;
+    const guest_id = device?.guestId ?? claimedGuestId;
+    if (beta && !validRequestId(request_id)) return privateJson({ error: "A request_id UUID is required" }, { status: 400 });
 
     if (!validPuzzleId(puzzle_id) || !validGuess(guess)) {
       return privateJson(
@@ -46,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get current session for logged in user
-    const session = await auth();
+    const session = beta ? null : await auth();
     const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
     if (!userId && !validGuestId(guest_id)) {
@@ -56,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     const { isCorrect, similarity } = checkAnswer(guess.trim(), puzzle.answer);
 
-    const { outcome, award } = await submitGuess(runInPrismaTransaction, {
+    const { outcome, award } = await submitGuess(device ? betaTransaction(device.guestId, request_id as string, puzzle.id, guess.trim()) : runInPrismaTransaction, {
       puzzleId: puzzle.id,
       playerKey,
       guessText: guess.trim(),
@@ -86,7 +94,7 @@ export async function POST(req: NextRequest) {
     };
 
     // Run dynamic difficulty assessment asynchronously in background
-    recalculatePuzzleDifficulty(puzzle.id).catch(err => {
+    if (!beta) recalculatePuzzleDifficulty(puzzle.id).catch(err => {
       console.error("Difficulty engine failed");
     });
 
@@ -103,6 +111,7 @@ export async function POST(req: NextRequest) {
       message: isCorrect ? "Correct!" : "Incorrect answer"
     });
   } catch (error: unknown) {
+    if (error instanceof RequestConflict) return privateJson({ error: "Request ID conflict" }, { status: 409 });
     console.error("Failed to process guess");
     return privateJson(
       { error: "Internal Server Error" },

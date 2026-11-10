@@ -1,3 +1,5 @@
+import { boundedJson } from "@/services/nativeBeta/body";
+import { betaEnabled, nativePrincipal } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -17,20 +19,24 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
 // POST (not GET) so the guest id stays out of URLs and logs. Read-only.
 export async function POST(req: NextRequest) {
   try {
+    const beta = betaEnabled();
+    const device = beta ? await nativePrincipal(req) : null;
+    if (beta && !device) return privateJson({ error: "Unauthorized" }, { status: 401 });
     let body: unknown;
     try {
-      body = await req.json();
+      body = beta ? await boundedJson(req) : await req.json();
     } catch {
       return privateJson({ error: "Request body must be valid JSON" }, { status: 400 });
     }
     if (body === null || typeof body !== "object" || Array.isArray(body)) {
       return privateJson({ error: "Request body must be a JSON object" }, { status: 400 });
     }
-    const { puzzle_id, guest_id } = body as Record<string, unknown>;
+    const { puzzle_id, guest_id: claimedGuestId } = body as Record<string, unknown>;
+    const guest_id = device?.guestId ?? claimedGuestId;
     if (!validPuzzleId(puzzle_id)) {
       return privateJson({ error: "puzzle_id is required" }, { status: 400 });
     }
-    const session = await auth();
+    const session = beta ? null : await auth();
     const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
     if (!userId && !validGuestId(guest_id)) {
       return privateJson({ error: "guest_id is required for guests" }, { status: 400 });

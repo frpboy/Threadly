@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "fix/android-progress-api-20261107": false
+      "fix/android-progress-api-20261107": false,
+      "native/secure-beta-20261110": false
     }
   }
 }
