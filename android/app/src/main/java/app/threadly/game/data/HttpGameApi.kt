@@ -53,14 +53,14 @@ class HttpGameApi(private val baseUrl: String) : GameApi {
         if (r.code != 200) return null
         return try {
             Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5))
-        } catch (_: JSONException) { throw IOException("Invalid puzzle response") }
+        } catch (_: JSONException) { null }
     }
 
     override suspend fun progress(puzzleId: String, guestId: String): Progress? {
         val r = call("POST", "/api/progress", JSONObject().put("puzzle_id", puzzleId).put("guest_id", guestId))
         val j = r.json ?: return null
         return if (r.code == 200) {
-            try { Progress.parse(j) } catch (_: JSONException) { throw IOException("Invalid progress response") }
+            try { Progress.parse(j) } catch (_: JSONException) { null }
         } else null
     }
 
