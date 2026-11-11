@@ -30,7 +30,30 @@ npm ci --workspace apps/web
 npm run dev
 ```
 
+The web workspace's `predev` script generates the Prisma client before Next.js starts. The workspace build also generates the client before compiling.
+
 The web workspace needs a PostgreSQL `DATABASE_URL` and server-only authentication configuration. Keep secrets outside source control. Use an isolated development database, never an inherited production connection for testing. The current Neon OIDC configuration is not a working sign-in setup merely because an issuer URL is present: client registration, discovery and callback behavior need verification.
+
+For a fresh local database, use a disposable PostgreSQL instance and a local-only password. From the repository root:
+
+```sh
+docker run --name threadly-dev-db \
+  -e POSTGRES_DB=threadly_dev \
+  -e POSTGRES_USER=threadly \
+  -e POSTGRES_PASSWORD=local-only-change-this \
+  -p 54329:5432 \
+  -v threadly-dev-db:/var/lib/postgresql/data \
+  -d postgres:16
+
+export DATABASE_URL='postgresql://threadly:local-only-change-this@127.0.0.1:54329/threadly_dev?schema=public'
+cd apps/web
+npx prisma generate
+npx prisma db push
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f prisma/drafts/guess_player_key.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT indexdef FROM pg_indexes WHERE indexname = 'guesses_puzzle_player_clue_uq';"
+```
+
+These schema and draft-index commands are for that isolated local database only. They are not a production migration procedure; never point them at Preview or Production until the database target is independently verified and an approved backup and migration plan exist.
 
 ```sh
 npm test --workspace apps/web
