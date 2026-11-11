@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import type { DbClient } from "@/lib/dbClient";
 
 export interface StreakInfo {
   currentStreak: number;
@@ -8,11 +9,12 @@ export interface StreakInfo {
 export async function updatePlayerStreak(
   userId: string | null,
   guestId: string | null,
-  isCorrect: boolean
+  isCorrect: boolean,
+  client: DbClient = db
 ): Promise<StreakInfo> {
   if (!isCorrect) {
     // Streaks only update on successful connections/solves
-    const record = await getStreakRecord(userId, guestId);
+    const record = await getStreakRecord(userId, guestId, client);
     return {
       currentStreak: record?.currentStreak || 0,
       bestStreak: record?.bestStreak || 0
@@ -24,7 +26,7 @@ export async function updatePlayerStreak(
 
   const filter = userId ? { userId } : { guestId };
 
-  let streak = await db.streak.findFirst({
+  let streak = await client.streak.findFirst({
     where: filter
   });
 
@@ -38,7 +40,7 @@ export async function updatePlayerStreak(
     if (userId) data.userId = userId;
     else if (guestId) data.guestId = guestId;
 
-    const newStreak = await db.streak.create({
+    const newStreak = await client.streak.create({
       data
     });
 
@@ -69,7 +71,7 @@ export async function updatePlayerStreak(
 
   const newBest = Math.max(streak.bestStreak, newCurrent);
 
-  const updatedStreak = await db.streak.update({
+  const updatedStreak = await client.streak.update({
     where: { id: streak.id },
     data: {
       currentStreak: newCurrent,
@@ -84,9 +86,9 @@ export async function updatePlayerStreak(
   };
 }
 
-async function getStreakRecord(userId: string | null, guestId: string | null) {
+async function getStreakRecord(userId: string | null, guestId: string | null, client: DbClient = db) {
   const filter = userId ? { userId } : { guestId: guestId || "none" };
-  return await db.streak.findFirst({
+  return await client.streak.findFirst({
     where: filter
   });
 }

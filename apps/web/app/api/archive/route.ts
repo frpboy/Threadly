@@ -1,3 +1,4 @@
+import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -26,7 +27,7 @@ export async function GET() {
     });
 
     return NextResponse.json({
-      puzzles: puzzles.map(p => ({
+      puzzles: puzzles.filter(validPuzzleContent).map(p => ({
         id: p.id,
         title: p.title,
         difficulty: p.difficulty,
@@ -36,7 +37,7 @@ export async function GET() {
       }))
     });
   } catch (error: any) {
-    console.error("Failed to fetch archive puzzles:", error);
+    console.error("Failed to fetch archive puzzles");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

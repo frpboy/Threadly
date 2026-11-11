@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
           };
         }
       } catch (aiError) {
-        console.error("Gemini API call failed, falling back to mock catalog:", aiError);
+        console.error("Gemini API call failed, falling back to mock catalog");
       }
     }
 
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       }
     });
   } catch (error: any) {
-    console.error("AI Generation pipeline failed:", error);
+    console.error("AI Generation pipeline failed");
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

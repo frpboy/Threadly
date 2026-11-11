@@ -1,38 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { auth } from "@/auth";
 
-// Helper to find or seed the current active season
-async function getOrCreateActiveSeason() {
-  const today = new Date();
-  
-  let season = await db.leaderboardSeason.findFirst({
-    where: {
-      startDate: { lte: today },
-      endDate: { gte: today }
-    }
-  });
-
-  if (!season) {
-    // Seed new 30-day season
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 30);
-    
-    season = await db.leaderboardSeason.create({
-      data: {
-        name: `Season ${new Date().toLocaleString("default", { month: "long" })} ${new Date().getFullYear()}`,
-        startDate: today,
-        endDate: endDate
-      }
-    });
-  }
-
-  return season;
+function privateJson(body: unknown, init: ResponseInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
 }
 
 export async function GET() {
   try {
-    const season = await getOrCreateActiveSeason();
+    // GET is read-only. Only the transactional scoring path may create a season.
+    const today = new Date();
+    const season = await db.leaderboardSeason.findFirst({
+      where: { startDate: { lte: today }, endDate: { gte: today } },
+      orderBy: [{ startDate: "asc" }, { id: "asc" }],
+    });
+    if (!season) return privateJson({ season_name: null, ends_at: null, entries: [] });
 
     const entries = await db.leaderboardEntry.findMany({
       where: { seasonId: season.id },
@@ -50,7 +33,7 @@ export async function GET() {
       }
     });
 
-    return NextResponse.json({
+    return privateJson({
       season_name: season.name,
       ends_at: season.endDate,
       entries: entries.map(e => ({
@@ -61,80 +44,18 @@ export async function GET() {
       }))
     });
   } catch (error: any) {
-    console.error("Leaderboard GET failed:", error);
-    return NextResponse.json(
+    console.error("Leaderboard GET failed");
+    return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }
     );
   }
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { score, guest_id } = await req.json();
-
-    if (typeof score !== "number") {
-      return NextResponse.json(
-        { error: "Score field must be a valid number" },
-        { status: 400 }
-      );
-    }
-
-    const session = await auth();
-    const userId = (session?.user as any)?.id || null;
-
-    if (!userId && !guest_id) {
-      return NextResponse.json(
-        { error: "User authentication or guest_id required to post score" },
-        { status: 401 }
-      );
-    }
-
-    const season = await getOrCreateActiveSeason();
-
-    const userFilter = userId ? { userId } : { guestId: guest_id };
-
-    let entry = await db.leaderboardEntry.findFirst({
-      where: {
-        seasonId: season.id,
-        ...userFilter
-      }
-    });
-
-    if (entry) {
-      // Update score by adding the points earned
-      entry = await db.leaderboardEntry.update({
-        where: { id: entry.id },
-        data: {
-          score: entry.score + score,
-          updatedAt: new Date()
-        }
-      });
-    } else {
-      // Create a new entry
-      const data: any = {
-        seasonId: season.id,
-        score: score,
-        updatedAt: new Date()
-      };
-      if (userId) data.userId = userId;
-      else if (guest_id) data.guestId = guest_id;
-
-      entry = await db.leaderboardEntry.create({
-        data
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      entry_id: entry.id,
-      cumulative_score: entry.score
-    });
-  } catch (error: any) {
-    console.error("Leaderboard POST failed:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
-  }
+// Scores are awarded only by /api/guess inside its transaction. Never accept client points.
+export async function POST() {
+  return privateJson(
+    { error: "Client score submission is disabled; submit a puzzle guess instead" },
+    { status: 405, headers: { Allow: "GET", "Cache-Control": "no-store" } }
+  );
 }
