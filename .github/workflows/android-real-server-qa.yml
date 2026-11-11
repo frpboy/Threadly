@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: threadly-native-qualification-${{ github.ref }}
+  group: threadly-native-qualification-real-server-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   real-server:
