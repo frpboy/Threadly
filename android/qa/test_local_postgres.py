@@ -12,7 +12,7 @@ import local_postgres as gate
 
 class LocalPostgresTest(unittest.TestCase):
     def test_ephemeral_credentials_private_masked_no_argv_or_source_literal(self):
-        with tempfile.TemporaryDirectory() as td,patch.dict(os.environ,GITHUB_RUN_ID='123',GITHUB_RUN_ATTEMPT='1'):
+        with tempfile.TemporaryDirectory() as td,patch.dict(os.environ,GITHUB_RUN_ID='123',GITHUB_RUN_ATTEMPT='1',NODE_OPTIONS='',NODE_PATH=''):
             state=Path(td)/'owned.json'; calls=[];out=io.StringIO()
             def fake(args,seconds=20):
                 calls.append(args)
