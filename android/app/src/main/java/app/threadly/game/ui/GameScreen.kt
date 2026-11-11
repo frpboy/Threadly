@@ -64,8 +64,14 @@ private fun Clues(clues: List<String>) {
 @Composable
 private fun Playing(s: UiState.Playing, onSubmit: (String) -> Unit) {
     var guess by rememberSaveable { mutableStateOf("") }
-    // Keep the typed text if a submit failed; clear it only once the server shows a new clue.
-    LaunchedEffect(s.progress.clues.size) { guess = "" }
+    var previousClueCount by rememberSaveable { mutableStateOf(s.progress.clues.size) }
+    // Keep the typed text through recreation and failed submits; clear it only when the server reveals a new clue.
+    LaunchedEffect(s.progress.clues.size) {
+        if (previousClueCount != s.progress.clues.size) {
+            guess = ""
+            previousClueCount = s.progress.clues.size
+        }
+    }
     Text("Find the connection. Fewer clues, more points.", color = Color(0xFFAAB0C0))
     Spacer(Modifier.height(12.dp))
     Clues(s.progress.clues)
