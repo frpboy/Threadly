@@ -6,6 +6,34 @@ The web schema is `apps/web/prisma/schema.prisma`. This branch has draft SQL und
 
 The nullable `playerKey` schema field alone does not enforce the partial unique index required by `prismaAttemptStore.ts`. `guess_player_key.up.sql` adds/backfills that field and creates `guesses_puzzle_player_clue_uq` on `(puzzle_id, player_key, clue_number)` where `player_key IS NOT NULL`. A generic `prisma db push` is not a substitute for that SQL index.
 
+## Isolated local development database
+
+A fresh `DATABASE_URL` does not create the tables or the partial unique index used by the transactional guess store. For local development, create a disposable PostgreSQL database and apply the repository schema plus the draft index explicitly.
+
+Example using Docker from the repository root:
+
+```sh
+docker run --name threadly-dev-db \
+  -e POSTGRES_DB=threadly_dev \
+  -e POSTGRES_USER=threadly \
+  -e POSTGRES_PASSWORD=local-only-change-this \
+  -p 54329:5432 \
+  -v threadly-dev-db:/var/lib/postgresql/data \
+  -d postgres:16
+
+export DATABASE_URL='postgresql://threadly:local-only-change-this@127.0.0.1:54329/threadly_dev?schema=public'
+cd apps/web
+npx prisma generate
+npx prisma db push
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f prisma/drafts/guess_player_key.up.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "SELECT indexdef FROM pg_indexes WHERE indexname = 'guesses_puzzle_player_clue_uq';"
+npm test
+```
+
+The final query must return the expected partial unique index definition before exercising the transaction-backed guess route. Use a new local-only database or a verified disposable copy; do not reuse credentials or a connection string from Preview or Production. The password above is a placeholder for a local container, not an application credential.
+
+`prisma db push` synchronizes the Prisma schema only. The separate draft SQL is needed for the partial unique index because that predicate is not represented by `schema.prisma`. This is a local development setup, not approval to apply the draft to an existing shared or production database. Production still requires the target-specific diagnostics, backup, migration review and explicit approval described below.
+
 ## Draft behavior and compatibility
 
 Read all three files before planning a target operation:
