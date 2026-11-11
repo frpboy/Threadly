@@ -43,7 +43,7 @@ def stop(state):
             except ProcessLookupError: return
             time.sleep(.1)
         os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, FileNotFoundError):
         pass
     finally:
         state.unlink(missing_ok=True)
