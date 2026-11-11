@@ -62,7 +62,7 @@ class RealGateTest(unittest.TestCase):
         for workflow in (real, synthetic):
             self.assertIn('len(unitcases)==24',workflow)
             self.assertIn('ea75d38aacf7deaa3976d8c2205ef790682a5928',workflow)
-            self.assertIn('group: threadly-native-qualification-${{ github.ref }}',workflow)
+            self.assertIn('group: threadly-native-qualification-real-server-${{ github.ref }}',workflow)
             self.assertIn('cancel-in-progress: false',workflow)
             self.assertNotIn('bd3e62e8df2a88a0f632d8a9a15b19883f79b39b',workflow)
         self.assertIn("steps.evidence_bound.outcome == 'success'",real)
