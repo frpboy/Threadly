@@ -4,8 +4,9 @@ import { containClientBreadcrumb, containTransactionEvent } from "./services/sen
 Sentry.init({
   dsn: "https://dac50025155ca8a1470c431638516821@o4510460282601472.ingest.us.sentry.io/4511569401675776",
 
-  // Never attach IP addresses, headers, cookies or user context. Set
-  // explicitly rather than relying on the SDK default across upgrades.
+  // Do not attach IP addresses, headers, cookies or user context: set
+  // sendDefaultPii false explicitly rather than relying on SDK defaults
+  // across upgrades.
   sendDefaultPii: false,
 
   // Privacy containment: transactions bypass beforeSend and carry raw page

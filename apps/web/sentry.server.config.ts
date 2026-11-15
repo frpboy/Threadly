@@ -4,10 +4,9 @@ import { containTransactionEvent } from "./services/sentryTransactionPrivacy";
 Sentry.init({
   dsn: "https://dac50025155ca8a1470c431638516821@o4510460282601472.ingest.us.sentry.io/4511569401675776",
 
-  // Never attach IP addresses, headers, cookies or user context. Set
-  // explicitly: the SDK default is false today, but sendDefaultPii is
-  // deprecated in favor of dataCollection and the default must not be relied
-  // on across SDK upgrades.
+  // Do not attach IP addresses, headers, cookies or user context: set
+  // sendDefaultPii false explicitly rather than relying on SDK defaults
+  // across upgrades.
   sendDefaultPii: false,
 
   // Privacy containment: transactions bypass beforeSend and carry raw request

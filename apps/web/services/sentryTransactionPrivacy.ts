@@ -13,9 +13,11 @@
  *   - /api/auth/* transactions are dropped entirely
  *   - query string and fragment are stripped from every remaining request URL
  *
- * Verified against @sentry/nextjs 10.78.0 (package-lock.json): URL capture is
- * unconditional, request body is never captured, and replay is inert unless
- * replayIntegration() is added explicitly.
+ * URL capture is not gated by sendDefaultPii (only headers, cookies and IP
+ * are) and request bodies are never captured - verified against the installed
+ * @sentry/nextjs source on each branch that carries this file. Session Replay
+ * is inert unless replayIntegration() is added explicitly; it is not part of
+ * the default integrations.
  */
 const AUTH_ROUTE_PREFIX = "/api/auth";
 
