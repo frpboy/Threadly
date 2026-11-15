@@ -68,6 +68,40 @@ jobs:
           assert len(beta)==5
           print('JVM tests:',len(cases),'beta:',len(beta),'no failures/errors/skips')
           PY
+      - name: Compile Sentry self-test variant and assert merged manifests
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          timeout --kill-after=10s 400s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -PthreadlyBetaApiBase=https://127.0.0.1 :app:assembleSelftest :app:processReleaseMainManifest :app:processSelftestMainManifest --no-daemon
+          test -s android/app/build/outputs/apk/selftest/app-selftest.apk
+          python3 - <<'EOF'
+          import glob, xml.etree.ElementTree as E
+          A='{http://schemas.android.com/apk/res/android}'
+          def merged(variant):
+              for pat in ('android/app/build/intermediates/merged_manifests/%s/**/AndroidManifest.xml' % variant,
+                          'android/app/build/intermediates/merged_manifest/%s/**/AndroidManifest.xml' % variant):
+                  hit=glob.glob(pat, recursive=True)
+                  if hit: return hit[0]
+              raise AssertionError('missing merged manifest '+variant)
+          def meta(variant):
+              root=E.parse(merged(variant)).getroot()
+              app=root.find('application')
+              return {m.get(A+'name'): m.get(A+'value') for m in app.findall('meta-data')}, app
+          m, app = meta('release')
+          assert m['io.sentry.dsn'].endswith('/4511569401675776'), m['io.sentry.dsn']
+          assert m['io.sentry.send-default-pii']=='false'
+          assert m['io.sentry.breadcrumbs.user-interaction']=='false'
+          assert app.get(A+'usesCleartextTraffic')=='false'
+          m, app = meta('selftest')
+          assert m['io.sentry.dsn']=='http://public@127.0.0.1:8971/1', m['io.sentry.dsn']
+          assert m['io.sentry.breadcrumbs.user-interaction']=='false'
+          assert app.get(A+'networkSecurityConfig')=='@xml/selftest_network_security_config'
+          m, app = meta('qa')
+          assert m['io.sentry.dsn']=='', repr(m['io.sentry.dsn'])
+          print('PASS manifests: release->threadly project, selftest->loopback mock, qa->SDK disabled; cleartext stays fenced')
+          EOF
+
       - name: Start owned disposable beta database and actual Next server
         timeout-minutes: 4
         run: |
@@ -146,13 +180,65 @@ jobs:
             timeout --kill-after=5s 20s adb -s emulator-5554 pull "/data/local/tmp/$name.png" "beta-evidence/$name.png"
             test -s "beta-evidence/$name.png"
           done
+      - name: Sentry release-path self-test on fenced emulator
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH" ANDROID_SERIAL=emulator-5554
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          mkdir -p "$RUNNER_TEMP/sentry-mock"
+          nohup python3 android/qa/sentry/mock_ingest.py serve --port 8971 --out "$RUNNER_TEMP/sentry-mock" > "$RUNNER_TEMP/sentry-mock.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/sentry-mock.pid"
+          deadline=$((SECONDS + 30))
+          while (( SECONDS < deadline )); do
+            if curl -sf -o /dev/null http://127.0.0.1:8971/health; then break; fi
+            sleep 1
+          done
+          curl -sf -o /dev/null http://127.0.0.1:8971/health
+          adb install -r android/app/build/outputs/apk/selftest/app-selftest.apk
+          adb shell cmd package list packages -U com.frpboy.threadly.selftest > "$RUNNER_TEMP/selftest-uid.txt"
+          cat "$RUNNER_TEMP/selftest-uid.txt"
+          SELFTEST_UID=$(python3 android/qa/beta/installed_uid.py < "$RUNNER_TEMP/selftest-uid.txt")
+          echo "Verified selftest package UID: $SELFTEST_UID"
+          # Same fence shape as the QA app: this variant may reach device loopback only.
+          for bin in iptables ip6tables; do
+            adb shell "$bin -N THREADLY_SELFTEST_EGRESS"
+            adb shell "$bin -A THREADLY_SELFTEST_EGRESS -o lo -j ACCEPT"
+            adb shell "$bin -A THREADLY_SELFTEST_EGRESS -j REJECT"
+            adb shell "$bin -I OUTPUT 1 -m owner --uid-owner $SELFTEST_UID -j THREADLY_SELFTEST_EGRESS"
+          done
+          adb reverse tcp:8971 tcp:8971
+          adb reverse --list | grep -F 'tcp:8971 tcp:8971'
+          adb shell am start -W -n com.frpboy.threadly.selftest/app.threadly.game.MainActivity > /dev/null
+          sleep 6
+          if adb shell pidof com.frpboy.threadly.selftest | tr -d '\r' | grep -q .; then
+            echo 'selftest app still running; labeled crash hook did not fire' >&2
+            exit 1
+          fi
+          echo 'labeled crash fired; process gone'
+          # Relaunch with the crash hook suppressed so the SDK has time to flush the cached envelope.
+          adb shell am start -W -n com.frpboy.threadly.selftest/app.threadly.game.MainActivity --ez skip_selftest_crash true > /dev/null
+          deadline=$((SECONDS + 45)); got=0
+          while (( SECONDS < deadline )); do
+            if compgen -G "$RUNNER_TEMP/sentry-mock/env-*.bin" > /dev/null; then got=1; break; fi
+            sleep 2
+          done
+          if [ "$got" != 1 ]; then
+            echo 'mock ingest received no envelope after relaunch' >&2
+            cat "$RUNNER_TEMP/sentry-mock.log" >&2
+            exit 1
+          fi
+          python3 android/qa/sentry/inspect_envelope.py "$RUNNER_TEMP"/sentry-mock/env-*.bin beta-evidence/sentry-selftest-event.json
+
       - name: Stop only owned runtime resources and private fixture credentials
         if: always()
         timeout-minutes: 2
         run: |
           export PATH="$ANDROID_HOME/platform-tools:$PATH"
           cleanup=0
+          timeout --kill-after=5s 10s adb -s emulator-5554 reverse --remove tcp:8971 || true
           timeout --kill-after=5s 10s adb -s emulator-5554 reverse --remove tcp:8765 || true
+          if [ -f "$RUNNER_TEMP/sentry-mock.pid" ]; then kill "$(cat "$RUNNER_TEMP/sentry-mock.pid")" 2>/dev/null || true; rm -f "$RUNNER_TEMP/sentry-mock.pid"; fi
           timeout --kill-after=5s 15s python3 android/qa/beta/server.py stop "$RUNNER_TEMP/threadly-beta-server.json" || cleanup=1
           timeout --kill-after=5s 40s python3 android/qa/local_postgres.py stop "$RUNNER_TEMP/threadly-local-db.json" || cleanup=1
           timeout --kill-after=5s 10s adb -s emulator-5554 emu kill || true
@@ -168,13 +254,13 @@ jobs:
           from pathlib import Path
           import xml.etree.ElementTree as E
           root=Path('beta-evidence')
-          names={'enrollment.xml','keystore.xml','beta-onboarding-welcome.png','beta-onboarding-howto.png','beta-onboarding-invite.png','beta-enrollment-empty.png','beta-open-first.png','beta-wrong-second.png','beta-solved.png'}
+          names={'enrollment.xml','keystore.xml','beta-onboarding-welcome.png','beta-onboarding-howto.png','beta-onboarding-invite.png','beta-enrollment-empty.png','beta-open-first.png','beta-wrong-second.png','beta-solved.png','sentry-selftest-event.json'}
           assert {p.name for p in root.iterdir()}==names
           assert sum(p.stat().st_size for p in root.iterdir())<8*1024*1024
           for name in ['enrollment','keystore']:
               cases=list(E.parse(root/(name+'.xml')).getroot().iter('testcase'))
               assert len(cases)==1
-          print('PASS bounded synthetic evidence: 2 native XML receipts,7 named captures; no APK/private state/logs')
+          print('PASS bounded synthetic evidence: 2 native XML receipts,7 named captures,1 sentry event JSON; no APK/private state/logs')
           PY
       - name: Upload synthetic QA pixels and test receipts only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

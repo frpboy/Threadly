@@ -25,6 +25,8 @@ android {
         buildConfigField 'String', 'API_BASE', '"' + (betaApi ?: 'https://native-beta-not-configured.invalid') + '"'
         // Crash reporting stays off unless a build type supplies a DSN.
         manifestPlaceholders['sentryDsn'] = ''
+        // Inert in every shipped variant; only the selftest build flips it.
+        buildConfigField 'boolean', 'SENTRY_SELFTEST', 'false'
     }
     buildFeatures { compose true; buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -49,6 +51,17 @@ android {
             versionNameSuffix '-loopback-qa'
             matchingFallbacks = ['debug']
             buildConfigField 'String', 'API_BASE', '"http://127.0.0.1:8765"'
+        }
+        // Labeled Sentry release-path qualification build: release configuration,
+        // debug-signed for the CI emulator, DSN overridden to a local mock ingest
+        // (or an explicit -PthreadlySentrySelftestDsn target). Never published.
+        selftest {
+            initWith release
+            applicationIdSuffix '.selftest'
+            versionNameSuffix '-sentry-selftest'
+            signingConfig signingConfigs.debug
+            manifestPlaceholders['sentryDsn'] = providers.gradleProperty('threadlySentrySelftestDsn').orElse('http://public@127.0.0.1:8971/1').get()
+            buildConfigField 'boolean', 'SENTRY_SELFTEST', 'true'
         }
         release {
             minifyEnabled false

@@ -23,6 +23,13 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (BuildConfig.SENTRY_SELFTEST && !intent.getBooleanExtra("skip_selftest_crash", false)) {
+            // Labeled synthetic crash for Sentry release-path qualification. False in
+            // every shipped variant; true only in the debug-signed selftest build.
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                throw RuntimeException("Threadly Sentry self-test: synthetic labeled crash for release-path qualification; not an app defect")
+            }, 3000)
+        }
         val device = DeviceCredentials(this)
         val onboarding = OnboardingStore(this)
         setContent {

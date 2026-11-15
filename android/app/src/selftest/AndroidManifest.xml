@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Qualification-only variant: cleartext permitted to device loopback so the
+       Sentry SDK can reach the CI mock ingest server. Base config stays false. -->
+  <application android:networkSecurityConfig="@xml/selftest_network_security_config" />
+</manifest>
