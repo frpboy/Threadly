@@ -25,13 +25,15 @@ class BetaEnrollmentTest {
                 rule.onAllNodesWithText("Threadly native beta").fetchSemanticsNodes().isNotEmpty()
         }
         if (rule.onAllNodesWithTag("onboarding_next").fetchSemanticsNodes().isEmpty()) return
+        rule.waitUntil(15000) { rule.onAllNodesWithText("Welcome to Threadly").fetchSemanticsNodes().isNotEmpty() }
         screenshot("beta-onboarding-welcome")
         rule.onNodeWithTag("onboarding_next").performClick()
-        rule.waitForIdle()
+        rule.waitUntil(15000) { rule.onAllNodesWithText("How to play").fetchSemanticsNodes().isNotEmpty() }
         screenshot("beta-onboarding-howto")
         rule.onNodeWithTag("onboarding_next").performClick()
+        rule.waitUntil(15000) { rule.onAllNodesWithText("Score with fewer clues").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("onboarding_next").performClick()
-        rule.waitForIdle()
+        rule.waitUntil(15000) { rule.onAllNodesWithText("Your beta invitation").fetchSemanticsNodes().isNotEmpty() }
         screenshot("beta-onboarding-invite")
         rule.onNodeWithTag("onboarding_next").performClick()
         rule.waitUntil(15000) { rule.onAllNodesWithText("Threadly native beta").fetchSemanticsNodes().isNotEmpty() }
