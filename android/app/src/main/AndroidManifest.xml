@@ -6,6 +6,8 @@
         <!-- Sentry crash reporting: manifest auto-init; empty DSN disables the SDK, so only release builds report. send-default-pii stays off. -->
         <meta-data android:name="io.sentry.dsn" android:value="${sentryDsn}" />
         <meta-data android:name="io.sentry.send-default-pii" android:value="false" />
+        <!-- No user-interaction breadcrumbs: Compose semantics labels (e.g. guess field) must not leave the device. -->
+        <meta-data android:name="io.sentry.breadcrumbs.user-interaction" android:value="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
