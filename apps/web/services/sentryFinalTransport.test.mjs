@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   rebuildEnvelope,
   finalTransportFactoryWith,
+  resetFinalTransportRateForTest,
 } from './sentryFinalTransport';
 import { GENERIC_ERROR_MESSAGE } from './sentryGenericErrorBoundary';
 
@@ -42,8 +43,10 @@ test('rebuild: event reconstructed to constant shape, headers fresh, trace heade
   assert.notEqual(headers.event_id, 'cccccccccccccccccccccccccccccccc');
   assert.ok(Math.abs(new Date(headers.sent_at).getTime() - Date.now()) < 5000);
   assert.ok(!('trace' in headers), 'SDK trace/sampling-context header forwarded');
+  assert.equal(items.length, 1, 'rebuilt envelope must carry exactly one event item');
   const [itemHeaders, payload] = items[0];
   assert.equal(itemHeaders.type, 'event');
+  assert.equal(headers.event_id, payload.event_id, 'header and payload event ids must match');
   assert.equal(payload.exception.values[0].value, GENERIC_ERROR_MESSAGE);
   assert.match(payload.event_id, /^[0-9a-f]{32}$/);
   assert.notEqual(payload.event_id, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb');
@@ -53,6 +56,15 @@ test('rebuild: event reconstructed to constant shape, headers fresh, trace heade
   for (const marker of [SECRET_SQL, SECRET_BEARER, 'resident@example.com', '1.2.3.4', 'session=1', 'api/auth']) {
     assert.ok(!json.includes(marker), 'leaked: ' + marker);
   }
+});
+
+test('rebuild: multiple event items collapse to exactly one', () => {
+  const two = rebuildEnvelope(envelopeWith(hostileEventPayload(), [
+    [{ type: 'event' }, hostileEventPayload({ message: 'second ' + SECRET_SQL })],
+  ]));
+  assert.equal(two.count, 1);
+  assert.equal(two.envelope[1].length, 1, 'second event item survived');
+  assert.ok(!JSON.stringify(two.envelope).includes('second'), 'second event content leaked');
 });
 
 test('rebuild: non-event items dropped; envelope with no events becomes unsendable', () => {
@@ -69,30 +81,22 @@ test('rebuild: non-event items dropped; envelope with no events becomes unsendab
   assert.equal(none, null, 'non-event-only envelope must not be sent');
 });
 
-test('rebuild: route label survives only under exact structural match with trusted route', () => {
-  const good = rebuildEnvelope(envelopeWith(hostileEventPayload({
+test('rebuild: the optional route label is dropped at the final transport (structural forgery impossible)', () => {
+  // Even a perfectly forged handled-event structure earns no label here:
+  // the transport cannot verify beforeSend's identity provenance, so it
+  // carries nothing structural over.
+  const forged = rebuildEnvelope(envelopeWith(hostileEventPayload({
     tags: { handled_api_error: 'true', api_route: 'guess' },
     fingerprint: ['handled-api-error', 'guess'],
   })));
-  assert.deepEqual(good.envelope[1][0][1].tags, { handled_api_error: 'true', api_route: 'guess' });
-  const extraTag = rebuildEnvelope(envelopeWith(hostileEventPayload({
-    tags: { handled_api_error: 'true', api_route: 'guess', sneaky: SECRET_BEARER },
-    fingerprint: ['handled-api-error', 'guess'],
-  })));
-  assert.ok(!extraTag.envelope[1][0][1].tags, 'tags with extra keys survived');
-  const badRoute = rebuildEnvelope(envelopeWith(hostileEventPayload({
-    tags: { handled_api_error: 'true', api_route: 'evil-' + SECRET_BEARER },
-    fingerprint: ['handled-api-error', 'evil-' + SECRET_BEARER],
-  })));
-  assert.ok(!badRoute.envelope[1][0][1].tags, 'untrusted route survived');
-  const badFp = rebuildEnvelope(envelopeWith(hostileEventPayload({
-    tags: { handled_api_error: 'true', api_route: 'guess' },
-    fingerprint: ['something-else'],
-  })));
-  assert.ok(!badFp.envelope[1][0][1].tags, 'mismatched fingerprint survived');
+  const payload = forged.envelope[1][0][1];
+  assert.ok(!payload.tags, 'tags survived reconstruction');
+  assert.deepEqual(payload.fingerprint, ['web-generic-error']);
+  assert.deepEqual(Object.keys(payload).sort(), ['event_id', 'exception', 'fingerprint', 'level', 'platform', 'timestamp'].sort());
 });
 
 test('rate: at most 30 events per process per minute reach the HTTP layer', async () => {
+  resetFinalTransportRateForTest();
   const bodies = [];
   const factory = finalTransportFactoryWith(async (req) => { bodies.push(req.body); return { statusCode: 'success' }; });
   const transport = factory({ url: 'http://127.0.0.1/1', headers: {} });
@@ -103,6 +107,7 @@ test('rate: at most 30 events per process per minute reach the HTTP layer', asyn
 });
 
 test('drop busy: sends while one is in flight are dropped, never queued; flush settles', async () => {
+  resetFinalTransportRateForTest();
   const bodies = [];
   let release;
   const gate = new Promise((r) => { release = r; });

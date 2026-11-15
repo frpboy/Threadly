@@ -21,7 +21,7 @@ function parseWire(body) {
   return { headers, items, text };
 }
 
-test('final wire: handled API error leaves as constant shape plus trusted route label only', async () => {
+test('final wire: handled API error leaves as the same constant shape (route label dropped at final transport)', async () => {
   const bodies = [];
   Sentry.init({
     dsn: 'http://public@127.0.0.1:1/1',
@@ -54,11 +54,11 @@ test('final wire: handled API error leaves as constant shape plus trusted route 
   assert.equal(itemHeaders.type, 'event');
   for (const key of Object.keys(event)) {
     assert.ok(
-      ['event_id', 'platform', 'level', 'timestamp', 'exception', 'fingerprint', 'tags'].includes(key),
+      ['event_id', 'platform', 'level', 'timestamp', 'exception', 'fingerprint'].includes(key),
       'unexpected key on the wire: ' + key
     );
   }
   assert.equal(event.exception.values[0].value, GENERIC_ERROR_MESSAGE);
-  assert.deepEqual(event.tags, { handled_api_error: 'true', api_route: 'guess' });
-  assert.deepEqual(event.fingerprint, ['handled-api-error', 'guess']);
+  assert.ok(!event.tags, 'tags reached the wire (final transport must drop them)');
+  assert.deepEqual(event.fingerprint, ['web-generic-error']);
 });
