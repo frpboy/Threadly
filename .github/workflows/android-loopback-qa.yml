@@ -27,7 +27,7 @@ jobs:
           test "$(git rev-parse HEAD:apps/web)" = "3cb8fed53f003911d40c4663e0c45aaafee00373"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
-          grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle
+          grep -F "betaApi ?: 'https://native-beta-not-configured.invalid'" android/app/build.gradle
           test -z "${THREADLY_KEYSTORE_PATH:-}"
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
-          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -PthreadlyBetaApiBase=https://native-beta-not-configured.invalid :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
           timeout --kill-after=10s 90s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           cat "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           grep -F 'androidx.compose.ui:ui-test-manifest:' "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"

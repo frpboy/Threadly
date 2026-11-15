@@ -80,6 +80,11 @@ if 'pull' in sys.argv:Path(sys.argv[-1]).write_bytes(b'\\x89PNG\\r\\n\\x1a\\n')
 
     def test_dependency_scope_and_every_blocking_command_has_deadline(self):
         text=WORKFLOW.read_text()
+        isolation=step_script('Record exact source and assert release isolation')
+        self.assertIn("betaApi ?: 'https://native-beta-not-configured.invalid'", isolation)
+        self.assertNotIn("grep -F '\"https://threadly-ruddy.vercel.app\"'", isolation)
+        compile_step=step_script('Compile synthetic QA and existing unit tests, inspect merged manifests')
+        self.assertIn('-PthreadlyBetaApiBase=https://native-beta-not-configured.invalid', compile_step)
         self.assertIn(':app:dependencyInsight --configuration qaRuntimeClasspath',text)
         self.assertNotIn(' qaRuntimeClasspath --dependency',text.split(':app:dependencyInsight')[0])
         boot=step_script('Boot API36 and enforce mandatory QA-app IPv4 and IPv6 fence')

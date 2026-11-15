@@ -16,7 +16,7 @@ private class FakeKv(var data: String? = null, var writeOk: Boolean = true) : St
 }
 
 private fun result(id: String, day: String = "2026-11-15", solved: Boolean = true) =
-    GameResult(id, day, solved, 2, 80)
+    GameResult(id, day, solved, 2, if (solved) 80 else 0)
 
 /**
  * Mirrors real SharedPreferences commit semantics (SharedPreferencesImpl): memory
@@ -42,9 +42,12 @@ class StatsStoreTest {
         assertFalse(store.tryRecord(result("p1")))
         assertNotNull(kv.memory)   // failed commit still leaves the row visible in memory
         assertNull(kv.disk)        // but nothing is durable
+        val replacement = StatsStore(kv)
+        assertFalse(replacement.tryRecord(result("p1"))) // same process memory, new store
+        assertNull(kv.disk)
         kv.diskOk = true
         // The in-memory duplicate must not be reported as durable: a recommit is required.
-        assertTrue(store.tryRecord(result("p1")))
+        assertTrue(replacement.tryRecord(result("p1")))
         assertNotNull(kv.disk)
         assertTrue(kv.disk!!.contains("p1"))
     }
@@ -60,6 +63,13 @@ class StatsStoreTest {
         assertFalse(store.tryRecord(result("p1"))) // fail-closed: nothing written over corrupt history
         assertTrue(kv.writes.isEmpty())
         assertTrue(kv.data!!.contains("2026-13-40")) // corrupt bytes preserved verbatim
+        for (day in listOf("", "bad", "2026-02-30")) {
+            val raw = """[{"puzzleId":"p0","day":"$day","solved":true,"cluesUsed":1,"score":100}]"""
+            val bad = FakeKv(data = raw)
+            assertEquals(0, StatsStore(bad).summary("2026-11-15").played)
+            assertFalse(StatsStore(bad).tryRecord(result("p1")))
+            assertEquals(raw, bad.data)
+        }
     }
 
     @Test fun recordPersistsAcrossInstancesRestart() {
@@ -96,12 +106,12 @@ class StatsStoreTest {
         assertTrue(StatsStore(kv).tryRecord(result("p1")))
     }
 
-    @Test fun duplicatePuzzleIdIsIdempotentTrueWithoutSecondWrite() {
+    @Test fun duplicatePuzzleIdRecommitsWithoutChangingOutcome() {
         val kv = FakeKv()
         val store = StatsStore(kv)
         assertTrue(store.tryRecord(result("p1")))
         assertTrue(store.tryRecord(result("p1", solved = false))) // replay with a different outcome
-        assertEquals(1, kv.writes.size)
+        assertEquals(2, kv.writes.size)
         assertTrue(store.results()[0].solved) // first outcome stands
     }
 

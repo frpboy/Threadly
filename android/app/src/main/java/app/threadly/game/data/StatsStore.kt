@@ -27,7 +27,8 @@ class StatsStore internal constructor(private val kv: KvStore) {
         private val prefs = context.getSharedPreferences("threadly_stats", Context.MODE_PRIVATE)
         override fun read(): String? = prefs.getString(KEY, null)
         override fun write(value: String): Boolean =
-            try { prefs.edit().putString(KEY, value).commit() } catch (_: Exception) { false }
+            try { prefs.edit().putString(KEY, value)
+                .putString("commit_nonce", java.util.UUID.randomUUID().toString()).commit() } catch (_: Exception) { false }
     }
 
     internal class StoreException(message: String) : Exception(message)
@@ -53,7 +54,7 @@ class StatsStore internal constructor(private val kv: KvStore) {
                 ).also { r ->
                     // date math is pure arithmetic: an absurd day computes garbage
                     // silently, so validate semantics, not just shape
-                    if (!LocalStats.isValidIsoDay(r.day)) throw StoreException("unreadable history")
+                    if (!valid(r)) throw StoreException("unreadable history")
                 }
             }
         } catch (e: StoreException) {
@@ -64,28 +65,20 @@ class StatsStore internal constructor(private val kv: KvStore) {
     }
 
     /**
-     * Records a finished game. First result per puzzleId wins (the server
-     * finalizes a daily game once; a resume or replay is not a new outcome and
-     * reports true without writing). Returns false without writing when the
-     * existing history is unreadable or the commit fails.
+     * First result per puzzleId wins. Always recommit duplicate history, including
+     * on a new StatsStore instance: SharedPreferences may still contain a failed
+     * write in process memory. A changing nonce in the same editor forces a real
+     * commit even on Android versions that skip unchanged values.
      */
-    /**
-     * True when this instance's last write returned failure after possibly mutating
-     * in-memory state. SharedPreferences.commit() updates memory BEFORE the disk
-     * result, so a failed commit can leave the row visible to later reads in this
-     * process while nothing is durable (SharedPreferencesImpl source-confirmed).
-     */
-    private var lastWriteInDoubt = false
-
     fun tryRecord(result: GameResult): Boolean {
+        if (!valid(result)) return false
         val current = try { results() } catch (_: StoreException) { return false }
-        if (current.any { it.puzzleId == result.puzzleId }) {
-            // The duplicate may exist only in memory after a failed commit. Recommit the
-            // unchanged history before claiming durable success; never a silent no-op true.
-            return if (lastWriteInDoubt) commit(current) else true
-        }
-        return commit(current + result)
+        return commit(if (current.any { it.puzzleId == result.puzzleId }) current else current + result)
     }
+
+    private fun valid(r: GameResult): Boolean = r.puzzleId.isNotBlank() &&
+        LocalStats.isValidIsoDay(r.day) && r.cluesUsed in 1..5 &&
+        (if (r.solved) r.score == 120 - r.cluesUsed * 20 else r.score == 0)
 
     private fun commit(records: List<GameResult>): Boolean {
         val arr = JSONArray()
@@ -97,9 +90,7 @@ class StatsStore internal constructor(private val kv: KvStore) {
                 .put("cluesUsed", r.cluesUsed)
                 .put("score", r.score))
         }
-        val ok = kv.write(arr.toString())
-        lastWriteInDoubt = !ok
-        return ok
+        return try { kv.write(arr.toString()) } catch (_: Exception) { false }
     }
 
     /**
