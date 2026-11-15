@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
-import { scrubHandledApiEvent, stripHandledApiEventAttachments } from "./services/apiErrorCapture";
+import { applyWebErrorBoundary } from "./services/sentryGenericErrorBoundary";
 import { containTransactionEvent } from "./services/sentryTransactionPrivacy";
 
 Sentry.init({
@@ -22,11 +22,11 @@ Sentry.init({
   // Setting this option to true will print useful information to the console when Sentry is initialized
   debug: false,
 
-  // Handled-API-error events are reduced to a generic allowlisted shape and
-  // their envelope attachments dropped; every other event passes through.
+  // Error-event privacy boundary: handled-API-error events keep their
+  // reviewed generic route-tagged shape; every other error event is reduced
+  // to the fixed generic shape (no stacks, raw messages, scope or identity).
   beforeSend(event, hint) {
-    stripHandledApiEventAttachments(event, hint);
-    return scrubHandledApiEvent(event);
+    return applyWebErrorBoundary(event, hint);
   },
 
   // Transactions: drop /api/auth/* entirely (OAuth codes in query strings)

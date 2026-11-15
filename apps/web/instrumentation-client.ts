@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { containClientBreadcrumb, containTransactionEvent } from "./services/sentryTransactionPrivacy";
+import { containGenericErrorEvent } from "./services/sentryGenericErrorBoundary";
 
 Sentry.init({
   dsn: "https://dac50025155ca8a1470c431638516821@o4510460282601472.ingest.us.sentry.io/4511569401675776",
@@ -23,6 +24,12 @@ Sentry.init({
   // breadcrumbs disabled in the Android build.
   beforeBreadcrumb(breadcrumb) {
     return containClientBreadcrumb(breadcrumb);
+  },
+
+  // Error-event privacy boundary: every client error event is reduced to
+  // the fixed generic shape (no stacks, raw messages, scope or identity).
+  beforeSend(event, hint) {
+    return containGenericErrorEvent(event, hint);
   },
 
   // Strip query/fragment from transaction request URLs.

@@ -69,12 +69,13 @@ test('attachment stripping applies only to tagged events', () => {
   stripHandledApiEventAttachments({ tags: { [HANDLED_API_ERROR_TAG]: 'true' } }, undefined);
 });
 
-test('server and edge Sentry configs both wire the handled-error boundary', () => {
+test('server and edge Sentry configs wire the handled-error boundary (via the generic boundary wrapper)', () => {
   const root = fileURLToPath(new URL('../', import.meta.url));
   for (const name of ['sentry.server.config.ts', 'sentry.edge.config.ts']) {
     const src = readFileSync(root + name, 'utf8');
-    assert.ok(src.includes('scrubHandledApiEvent'), name + ' missing scrub wiring');
-    assert.ok(src.includes('stripHandledApiEventAttachments'), name + ' missing attachment clearing');
+    // The configs wire applyWebErrorBoundary, which applies
+    // stripHandledApiEventAttachments + scrubHandledApiEvent internally.
+    assert.ok(src.includes('applyWebErrorBoundary'), name + ' missing error-boundary wiring');
     assert.ok(/beforeSend\s*\(/.test(src), name + ' missing beforeSend');
   }
 });
