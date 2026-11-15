@@ -1,6 +1,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { containClientBreadcrumb, containTransactionEvent } from "./services/sentryTransactionPrivacy";
 import { containGenericErrorEvent } from "./services/sentryGenericErrorBoundary";
+import { finalTransportFactory } from "./services/sentryFinalTransport";
 
 Sentry.init({
   dsn: "https://dac50025155ca8a1470c431638516821@o4510460282601472.ingest.us.sentry.io/4511569401675776",
@@ -18,6 +19,11 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console when Sentry is initialized
   debug: false,
+
+  // Final wire boundary: every envelope is reconstructed (constant event
+  // shape, fresh headers), non-event items dropped, rate-limited, and
+  // dropped-not-queued when busy. Nothing else leaves the process.
+  transport: finalTransportFactory,
 
   // Drop DOM-interaction (ui.click/ui.input carry clicked-element text) and
   // console breadcrumbs; same privacy class as the user-interaction

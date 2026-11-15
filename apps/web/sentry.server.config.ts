@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { applyWebErrorBoundary } from "./services/sentryGenericErrorBoundary";
+import { finalTransportFactory } from "./services/sentryFinalTransport";
 import { containTransactionEvent } from "./services/sentryTransactionPrivacy";
 
 Sentry.init({
@@ -21,6 +22,11 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console when Sentry is initialized
   debug: false,
+
+  // Final wire boundary: every envelope is reconstructed (constant event
+  // shape, fresh headers), non-event items dropped, rate-limited, and
+  // dropped-not-queued when busy. Nothing else leaves the process.
+  transport: finalTransportFactory,
 
   // Error-event privacy boundary: handled-API-error events keep their
   // reviewed generic route-tagged shape; every other error event is reduced

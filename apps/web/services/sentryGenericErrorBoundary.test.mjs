@@ -7,7 +7,7 @@ import {
   applyWebErrorBoundary,
   GENERIC_ERROR_MESSAGE,
 } from './sentryGenericErrorBoundary';
-import { GENERIC_HANDLED_API_ERROR_MESSAGE } from './apiErrorCapture';
+import { GENERIC_HANDLED_API_ERROR_MESSAGE, registerHandledRouteMarker } from './sentryHandledMarker';
 
 const SECRET_SQL = "duplicate key value violates unique constraint users_pkey DETAIL: Key (email)=(resident@example.com)";
 const SECRET_BEARER = 'Bearer abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ1234567890_-';
@@ -59,10 +59,8 @@ test('event id and timestamp are always fresh, never carried over', () => {
 });
 
 test('platform comes from the calling config, never the event', () => {
-  const serverOut = applyWebErrorBoundary(hostileEvent(), {});
-  assert.equal(serverOut.platform, 'node');
-  const clientOut = containGenericErrorEvent(hostileEvent(), {});
-  assert.equal(clientOut.platform, 'javascript');
+  assert.equal(applyWebErrorBoundary(hostileEvent(), {}).platform, 'node');
+  assert.equal(containGenericErrorEvent(hostileEvent(), {}).platform, 'javascript');
 });
 
 test('two different hostile errors produce the same constant shape (grouped, content-free)', () => {
@@ -72,31 +70,37 @@ test('two different hostile errors produce the same constant shape (grouped, con
   assert.deepEqual(a, b);
 });
 
-test('user-settable handled tag alone is NOT trusted: no route label without our provenance', () => {
+test('spoofed handled tags are never trusted: no route label from tags alone', () => {
   const spoofed = {
     ...hostileEvent(),
     tags: { handled_api_error: 'true', api_route: 'guess' },
     message: GENERIC_HANDLED_API_ERROR_MESSAGE,
   };
-  // originalException is an arbitrary (attacker-influenced) error, not our marker
   const out = applyWebErrorBoundary(spoofed, { originalException: new Error(SECRET_SQL) });
   assert.ok(!out.tags, 'route tags survived on spoofed provenance');
   assert.deepEqual(out.fingerprint, ['web-generic-error']);
-  const json = JSON.stringify(out);
-  for (const marker of MARKERS) assert.ok(!json.includes(marker), 'leaked: ' + marker);
 });
 
-test('route label only with our marker exception AND a finite trusted route code', () => {
-  const hint = { originalException: new Error(GENERIC_HANDLED_API_ERROR_MESSAGE) };
-  const good = applyWebErrorBoundary({ ...hostileEvent(), tags: { handled_api_error: 'true', api_route: 'guess' } }, hint);
-  assert.deepEqual(good.tags, { handled_api_error: 'true', api_route: 'guess' });
-  assert.deepEqual(good.fingerprint, ['handled-api-error', 'guess']);
-  assert.equal(good.exception.values[0].value, GENERIC_ERROR_MESSAGE);
-  const evil = applyWebErrorBoundary({ ...hostileEvent(), tags: { handled_api_error: 'true', api_route: 'evil-' + SECRET_BEARER } }, hint);
-  assert.ok(!evil.tags, 'untrusted route code survived');
-  assert.deepEqual(evil.fingerprint, ['web-generic-error']);
-  const noTag = applyWebErrorBoundary({ ...hostileEvent(), tags: {} }, hint);
-  assert.ok(!noTag.tags);
+test('route label requires marker IDENTITY, not message text', () => {
+  // A remote-derived error whose message equals our constant must NOT earn the label.
+  const collision = new Error(GENERIC_HANDLED_API_ERROR_MESSAGE);
+  const outCollision = applyWebErrorBoundary({ ...hostileEvent(), tags: { handled_api_error: 'true', api_route: 'guess' } }, { originalException: collision });
+  assert.ok(!outCollision.tags, 'route label granted on message collision');
+  assert.deepEqual(outCollision.fingerprint, ['web-generic-error']);
+
+  // The registered marker object itself earns the trusted route label.
+  const marker = new Error(GENERIC_HANDLED_API_ERROR_MESSAGE);
+  registerHandledRouteMarker(marker, 'guess');
+  const out = applyWebErrorBoundary(hostileEvent(), { originalException: marker });
+  assert.deepEqual(out.tags, { handled_api_error: 'true', api_route: 'guess' });
+  assert.deepEqual(out.fingerprint, ['handled-api-error', 'guess']);
+  assert.equal(out.exception.values[0].value, GENERIC_ERROR_MESSAGE);
+
+  // An untrusted route code never registers, even through the registry.
+  const evilMarker = new Error(GENERIC_HANDLED_API_ERROR_MESSAGE);
+  registerHandledRouteMarker(evilMarker, 'evil-' + SECRET_BEARER);
+  const outEvil = applyWebErrorBoundary(hostileEvent(), { originalException: evilMarker });
+  assert.ok(!outEvil.tags, 'untrusted route code survived');
 });
 
 test('attachments are cleared through the hint for every event', () => {
@@ -108,7 +112,7 @@ test('attachments are cleared through the hint for every event', () => {
   assert.equal(hint2.attachments.length, 0);
 });
 
-test('server, edge and client configs all wire the final boundary in beforeSend', () => {
+test('server, edge and client configs wire both the beforeSend boundary and the final transport', () => {
   const here = fileURLToPath(new URL('.', import.meta.url));
   const server = readFileSync(here + '../sentry.server.config.ts', 'utf8');
   const edge = readFileSync(here + '../sentry.edge.config.ts', 'utf8');
@@ -116,7 +120,9 @@ test('server, edge and client configs all wire the final boundary in beforeSend'
   for (const [name, src] of [['server', server], ['edge', edge]]) {
     assert.ok(src.includes('applyWebErrorBoundary'), name + ' config does not wire applyWebErrorBoundary');
     assert.ok(src.includes('beforeSend'), name + ' config lost beforeSend');
+    assert.ok(src.includes('finalTransportFactory'), name + ' config does not wire the final transport');
   }
   assert.ok(client.includes('containGenericErrorEvent'), 'client config does not wire containGenericErrorEvent');
   assert.ok(client.includes('beforeSend'), 'client config lost beforeSend');
+  assert.ok(client.includes('finalTransportFactory'), 'client config does not wire the final transport');
 });
