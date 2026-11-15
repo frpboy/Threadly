@@ -57,7 +57,10 @@ def main():
     for key in ("ip_address", "email", "username", "name"):
         assert key not in user, "user.%s present: %r" % (key, user.get(key))
 
-    for crumb in event.get("breadcrumbs", {}).get("values", []):
+    crumbs = event.get("breadcrumbs") or []
+    if isinstance(crumbs, dict):
+        crumbs = crumbs.get("values", [])
+    for crumb in crumbs:
         assert crumb.get("type") != "user", "user-interaction breadcrumb present: %r" % crumb
         assert crumb.get("category") != "ui.click", "ui.click breadcrumb present"
 
