@@ -198,7 +198,7 @@ jobs:
           adb install -r android/app/build/outputs/apk/selftest/app-selftest.apk
           adb shell cmd package list packages -U com.frpboy.threadly.selftest > "$RUNNER_TEMP/selftest-uid.txt"
           cat "$RUNNER_TEMP/selftest-uid.txt"
-          SELFTEST_UID=$(python3 android/qa/beta/installed_uid.py < "$RUNNER_TEMP/selftest-uid.txt")
+          SELFTEST_UID=$(python3 android/qa/sentry/selftest_uid.py < "$RUNNER_TEMP/selftest-uid.txt")
           echo "Verified selftest package UID: $SELFTEST_UID"
           # Same fence shape as the QA app: this variant may reach device loopback only.
           for bin in iptables ip6tables; do
