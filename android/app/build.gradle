@@ -23,6 +23,8 @@ android {
         versionCode 2
         versionName '0.2.1-beta.1'
         buildConfigField 'String', 'API_BASE', '"' + (betaApi ?: 'https://native-beta-not-configured.invalid') + '"'
+        // Crash reporting stays off unless a build type supplies a DSN.
+        manifestPlaceholders['sentryDsn'] = ''
     }
     buildFeatures { compose true; buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -50,6 +52,7 @@ android {
         }
         release {
             minifyEnabled false
+            manifestPlaceholders['sentryDsn'] = 'https://dac50025155ca8a1470c431638516821@o4510460282601472.ingest.us.sentry.io/4511569401675776'
             if (System.getenv('THREADLY_KEYSTORE_PATH')) signingConfig signingConfigs.release
         }
     }
@@ -65,6 +68,7 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.9.4'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
+    implementation 'io.sentry:sentry-android:8.64.0'
     androidTestImplementation bom
     androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
