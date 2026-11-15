@@ -1,6 +1,7 @@
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 export async function GET() {
   try {
@@ -38,6 +39,7 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Failed to fetch archive puzzles");
+    captureHandledApiError("archive", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

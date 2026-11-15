@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { scrubHandledApiEvent, stripHandledApiEventAttachments } from "./services/apiErrorCapture";
 
 Sentry.init({
   // The isolated native beta must not send device credentials or synthetic activity to production telemetry.
@@ -10,4 +11,11 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console when Sentry is initialized
   debug: false,
+
+  // Handled-API-error events are reduced to a generic allowlisted shape and
+  // their envelope attachments dropped; every other event passes through.
+  beforeSend(event, hint) {
+    stripHandledApiEventAttachments(event, hint);
+    return scrubHandledApiEvent(event);
+  },
 });

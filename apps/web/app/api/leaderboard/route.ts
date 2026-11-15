@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -45,6 +46,7 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Leaderboard GET failed");
+    captureHandledApiError("leaderboard", error);
     return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }

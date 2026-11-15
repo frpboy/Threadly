@@ -8,6 +8,7 @@ import { calculateScore } from "@/services/scoringService";
 import { buildProgress } from "@/services/progressService.ts";
 import { prismaHistory } from "@/services/prismaAttemptStore";
 import { validPuzzleId, validGuestId } from "@/services/requestValidation";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
     return privateJson(progress);
   } catch (error) {
     console.error("Failed to load progress");
+    captureHandledApiError("progress", error);
     return privateJson({ error: "Internal Server Error" }, { status: 500 });
   }
 }

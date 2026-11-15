@@ -1,6 +1,7 @@
 import { boundedJson, BodyLimit } from "@/services/nativeBeta/body";
 import { NextResponse } from 'next/server';
 import { betaEnabled, nativeEnroll } from '@/services/nativeBeta/access';
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 export async function POST(request: Request) {
   const headers = { 'Cache-Control': 'private, no-store' };
   if (!betaEnabled()) return NextResponse.json({ error: 'Not found' }, { status: 404, headers });
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     return result ? NextResponse.json(result, { headers }) : NextResponse.json({ error: 'Invalid or expired invitation' }, { status: 401, headers });
   } catch (error) {
     if (error instanceof BodyLimit || error instanceof SyntaxError) return NextResponse.json({ error: 'Invalid invitation request' }, { status: 400, headers });
+    captureHandledApiError("beta/enroll", error);
     return NextResponse.json({ error: 'Enrollment unavailable' }, { status: 503, headers });
   }
 }

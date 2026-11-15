@@ -45,7 +45,7 @@ jobs:
           timeout --kill-after=10s 150s npm ci --workspace apps/web
           timeout --kill-after=10s 60s npx prisma generate --schema apps/web/prisma/schema.prisma
           timeout --kill-after=10s 60s npm exec --workspace apps/web tsc -- --noEmit
-          timeout --kill-after=10s 60s node --experimental-strip-types --experimental-loader ./android/qa/beta/loader.mjs --test apps/web/services/nativeBeta/deviceAccess.test.mjs android/qa/beta/unit.test.mjs
+          timeout --kill-after=10s 60s node --experimental-strip-types --experimental-loader ./android/qa/beta/loader.mjs --test apps/web/services/nativeBeta/deviceAccess.test.mjs android/qa/beta/unit.test.mjs apps/web/services/apiErrorCapture.test.mjs apps/web/services/apiErrorCapture.envelope.test.mjs
           python3 -m unittest discover -s android/qa/beta -p 'test_*.py' -v
           timeout --kill-after=10s 240s bash -c 'cd apps/web && node scripts/build-verified.mjs'
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a

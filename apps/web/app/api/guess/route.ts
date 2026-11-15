@@ -12,6 +12,7 @@ import { MAX_CLUES } from "@/services/attemptService";
 import { submitGuess } from "@/services/guessTransaction";
 import { runInPrismaTransaction } from "@/services/prismaAttemptStore";
 import { validPuzzleId, validGuess, validGuestId } from "@/services/requestValidation";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof RequestConflict) return privateJson({ error: "Request ID conflict" }, { status: 409 });
     console.error("Failed to process guess");
+    captureHandledApiError("guess", error);
     return privateJson(
       { error: "Internal Server Error" },
       { status: 500 }

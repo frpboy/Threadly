@@ -6,6 +6,7 @@ import { validPuzzleId, validGuestId } from "@/services/requestValidation";
 import { buildProgress } from "@/services/progressService.ts";
 import { prismaHistory } from "@/services/prismaAttemptStore";
 import { calculateScore } from "@/services/scoringService";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -47,9 +48,10 @@ export async function POST(req: NextRequest) {
     }
     const clue = puzzle.clues.find(c => c.clueOrder === requested_clue_order)!;
     return privateJson({ order: clue.clueOrder, text: clue.clueText });
-  } catch {
+  } catch (error) {
     // Do not log submitted identifiers, private history, database URLs or exception payloads.
     console.error("Failed to fetch clue");
+    captureHandledApiError("clue", error);
     return privateJson({ error: "Internal Server Error" }, { status: 500 });
   }
 }

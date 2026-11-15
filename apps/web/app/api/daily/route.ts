@@ -2,6 +2,7 @@ import { betaEnabled, nativePrincipal } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
 import { getDailyPuzzle } from "@/services/puzzleService";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 export async function GET(request: Request) {
   try {
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error: any) {
     console.error("Failed to fetch daily puzzle");
+    captureHandledApiError("daily", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

@@ -2,6 +2,7 @@ import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 export async function POST(req: NextRequest) {
   // Enforce administrative authorization to prevent unauthorized publishing/scheduling of puzzles
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Failed to publish puzzle");
+    captureHandledApiError("admin/publish", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

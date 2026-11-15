@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 export async function GET(req: NextRequest) {
   // Enforce administrative authorization to prevent leakage of unpublished puzzles and solutions
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("Failed to fetch admin puzzles");
+    captureHandledApiError("admin/puzzles", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }

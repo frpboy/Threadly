@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { GoogleGenAI } from "@google/genai";
 import { verifyAdminRequest } from "@/lib/adminAuth";
+import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 // Predefined catalog of premium mock puzzles in case GEMINI_API_KEY is not set
 const MOCK_CATALOG = [
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("AI Generation pipeline failed");
+    captureHandledApiError("admin/generate-ai", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
