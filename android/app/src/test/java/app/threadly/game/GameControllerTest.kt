@@ -34,6 +34,44 @@ class GameControllerTest {
     private val api = FakeApi()
     private val c = GameController(api, "guest")
 
+    private val recordedResults = mutableListOf<GameResult>()
+    private val rc = GameController(api, "guest", recorder = { recordedResults += it }, clock = { "2026-11-15" })
+
+    @Test fun finishedGuessRecordsExactlyOneResult() = runBlocking {
+        val cur = rc.load() as UiState.Playing
+        api.progress = solved(1, 100)
+        rc.guess(cur, "batman") as UiState.Finished
+        assertEquals(1, recordedResults.size)
+        val res = recordedResults[0]
+        assertEquals("p1", res.puzzleId); assertEquals("2026-11-15", res.day)
+        assertTrue(res.solved); assertEquals(1, res.cluesUsed); assertEquals(100, res.score)
+    }
+    @Test fun exhaustedGameRecordsFailure() = runBlocking {
+        val cur = rc.load() as UiState.Playing
+        api.progress = exhausted()
+        rc.guess(cur, "nope") as UiState.Finished
+        assertEquals(1, recordedResults.size)
+        assertFalse(recordedResults[0].solved); assertEquals(5, recordedResults[0].cluesUsed)
+    }
+    @Test fun resumedFinishedGameRecordsOnceAndReloadDoesNotDuplicate() = runBlocking {
+        api.progress = solved(2, 80)
+        rc.load() as UiState.Finished
+        rc.load() as UiState.Finished
+        assertEquals(1, recordedResults.size)
+        assertTrue(recordedResults[0].solved); assertEquals(2, recordedResults[0].cluesUsed)
+    }
+    @Test fun playingGameRecordsNothing() = runBlocking {
+        rc.load() as UiState.Playing
+        assertTrue(recordedResults.isEmpty())
+    }
+    @Test fun throwingRecorderNeverBreaksGameplay() = runBlocking {
+        val bad = GameController(api, "guest", recorder = { throw RuntimeException("disk full") }, clock = { "2026-11-15" })
+        val cur = bad.load() as UiState.Playing
+        api.progress = solved(1, 100)
+        val s = bad.guess(cur, "batman") as UiState.Finished
+        assertTrue(s.notice.contains("+100"))
+    }
+
     @Test fun loadResumesOpenGameFromServer() = runBlocking {
         api.progress = open(3, listOf("x", "y"))
         val s = c.load() as UiState.Playing

@@ -14,6 +14,7 @@ import androidx.lifecycle.ViewModelProvider
 import app.threadly.game.data.DeviceCredentials
 import app.threadly.game.data.HttpGameApi
 import app.threadly.game.data.OnboardingStore
+import app.threadly.game.data.StatsStore
 import app.threadly.game.ui.GameScreen
 import app.threadly.game.ui.GameViewModel
 import app.threadly.game.ui.ONBOARDING_VERSION
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 val vm: GameViewModel = viewModel(key = "beta-" + device.sessionKey(), factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                        GameViewModel(HttpGameApi(BuildConfig.API_BASE, device), "server-owned-device", device) as T
+                        GameViewModel(HttpGameApi(BuildConfig.API_BASE, device), "server-owned-device", device, StatsStore(this@MainActivity)) as T
                 })
                 GameScreen(vm, onReenroll = { enrolled = false })
             } else {

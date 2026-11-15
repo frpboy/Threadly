@@ -4,13 +4,41 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.threadly.game.data.GameApi
 import app.threadly.game.data.BetaCredentials
+import app.threadly.game.data.GameResult
 import app.threadly.game.data.PendingGuess
+import app.threadly.game.data.ShareCard
+import app.threadly.game.data.StatsStore
+import app.threadly.game.data.StatsSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-class GameViewModel(api: GameApi, guestId: String, private val device: BetaCredentials? = null) : ViewModel() {
-    private val controller = GameController(api, guestId)
+class GameViewModel(
+    api: GameApi,
+    guestId: String,
+    private val device: BetaCredentials? = null,
+    private val stats: StatsStore? = null,
+    private val today: () -> String = {
+        val c = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC"))
+        "%04d-%02d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
+    },
+) : ViewModel() {
+    private val controller = GameController(api, guestId, recorder = { r: GameResult -> stats?.tryRecord(r) }, clock = today)
+
+    /** Local stats for the finished screen; empty summary when history is unreadable or absent. */
+    fun statsSummary(): StatsSummary = stats?.summary(today()) ?: StatsSummary(0, 0, 0, 0, emptyMap())
+
+    /** Spoiler-free share text for a finished game. */
+    fun shareCard(s: UiState.Finished): String = ShareCard.build(
+        GameResult(
+            puzzleId = s.puzzleId,
+            day = today(),
+            solved = s.progress.state == app.threadly.game.data.GameState.SOLVED,
+            cluesUsed = s.progress.clueNumber,
+            score = s.progress.score,
+        ),
+        totalClues = s.progress.totalClues,
+    )
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state
 

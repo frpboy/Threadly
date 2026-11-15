@@ -66,7 +66,7 @@ fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null) {
                     Button(onClick = vm::load, modifier = Modifier.heightIn(min = 48.dp)) { Text("Retry") }
                 }
                 is UiState.Playing -> Playing(s, vm::submit)
-                is UiState.Finished -> Finished(s)
+                is UiState.Finished -> Finished(s, vm)
             }
         }
     }
@@ -115,9 +115,43 @@ private fun Playing(s: UiState.Playing, onSubmit: (String) -> Unit) {
 }
 
 @Composable
-private fun Finished(s: UiState.Finished) {
+private fun Finished(s: UiState.Finished, vm: GameViewModel) {
     Clues(s.progress.clues)
     Spacer(Modifier.height(12.dp))
     Text(s.notice, color = Color(0xFFFFD479), fontSize = 18.sp,
         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+
+    // Spoiler-free share card: day, block pattern and score only, never the answer.
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var copied by rememberSaveable { mutableStateOf(false) }
+    Spacer(Modifier.height(16.dp))
+    Text(vm.shareCard(s), color = Color(0xFFAAB0C0), fontSize = 15.sp)
+    Spacer(Modifier.height(8.dp))
+    Button(
+        onClick = {
+            clipboard.setText(androidx.compose.ui.text.AnnotatedString(vm.shareCard(s)))
+            copied = true
+        },
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("share_result"),
+    ) { Text(if (copied) "Copied" else "Copy result to share") }
+
+    // Local on-device stats (PRD V1: no account needed).
+    val summary = remember { vm.statsSummary() }
+    if (summary.played > 0) {
+        Spacer(Modifier.height(16.dp))
+        Text("Your stats", color = Color.White, fontSize = 18.sp)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Played ${summary.played} · Won ${summary.wins} (${summary.winRate}%) · " +
+                "Streak ${summary.currentStreak} · Best ${summary.maxStreak}",
+            color = Color(0xFFAAB0C0), fontSize = 14.sp,
+        )
+        if (summary.clueDistribution.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                summary.clueDistribution.entries.joinToString("  ") { (clues, count) -> "${clues}c: $count" },
+                color = Color(0xFFAAB0C0), fontSize = 14.sp,
+            )
+        }
+    }
 }

@@ -1,9 +1,12 @@
 package app.threadly.game.ui
 
 import app.threadly.game.data.GameApi
+import app.threadly.game.data.GameResult
 import app.threadly.game.data.GameState
 import app.threadly.game.data.Progress
 import java.io.IOException
+import java.util.Calendar
+import java.util.TimeZone
 import app.threadly.game.data.PendingGuessException
 import app.threadly.game.data.AccessDeniedException
 
@@ -18,7 +21,18 @@ sealed interface UiState {
 }
 
 /** Pure game flow over [GameApi]. The server is the only source of truth for clues, guesses, score and finish state. */
-class GameController(private val api: GameApi, private val guestId: String) {
+class GameController(
+    private val api: GameApi,
+    private val guestId: String,
+    /** Best-effort local stats hook: called once per finished daily game. Recording must never break gameplay. */
+    private val recorder: ((GameResult) -> Unit)? = null,
+    /** UTC date of play, ISO yyyy-MM-dd. Injectable for tests. Calendar, not java.time: minSdk 24 has no desugaring. */
+    private val clock: () -> String = {
+        val c = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        "%04d-%02d-%02d".format(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1, c.get(Calendar.DAY_OF_MONTH))
+    },
+) {
+    private val recorded = HashSet<String>()
 
     suspend fun load(): UiState = try {
         val daily = api.daily() ?: return UiState.Error("Couldn't load today's puzzle. Try again.")
@@ -59,9 +73,25 @@ class GameController(private val api: GameApi, private val guestId: String) {
         }
     }
 
-    private fun render(id: String, title: String, p: Progress, notice: String): UiState =
-        if (p.finished) UiState.Finished(id, title, p, finishedMessage(p))
+    private fun render(id: String, title: String, p: Progress, notice: String): UiState {
+        if (p.finished && recorder != null && recorded.add(id)) {
+            try {
+                recorder.invoke(
+                    GameResult(
+                        puzzleId = id,
+                        day = clock(),
+                        solved = p.state == GameState.SOLVED,
+                        cluesUsed = p.clueNumber,
+                        score = p.score,
+                    )
+                )
+            } catch (_: Exception) {
+                // stats are local and best-effort; a failed record never changes the game state
+            }
+        }
+        return if (p.finished) UiState.Finished(id, title, p, finishedMessage(p))
         else UiState.Playing(id, title, p, notice)
+    }
 
     companion object {
         fun finishedMessage(p: Progress): String = when (p.state) {
