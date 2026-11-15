@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Curated launch content for Threadly V1. One global five-clue puzzle per day, clues ordered broad to almost-revealing (content guidelines doc 14). All entries are original, human-written, and free of political, religious and offensive content.",
+  "description": "Curated launch content for Threadly V1. One global five-clue puzzle per day, clues ordered broad to almost-revealing (content guidelines doc 14). All entries are original, agent-authored, pending human review before promotion, and free of political, religious and offensive content.",
   "puzzles": [
     {
       "id": "v1-001",
