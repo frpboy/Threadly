@@ -142,7 +142,7 @@ jobs:
           timeout --kill-after=10s 320s python3 android/qa/beta/run_native.py "$RUNNER_TEMP/threadly-beta-fixture.json" enrollment
           timeout --kill-after=5s 30s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/beta/fixture.cjs verify "$RUNNER_TEMP/threadly-beta-fixture.json"
           timeout --kill-after=10s 320s python3 android/qa/beta/run_native.py "$RUNNER_TEMP/threadly-beta-fixture.json" keystore
-          for name in beta-enrollment-empty beta-open-first beta-wrong-second beta-solved; do
+          for name in beta-onboarding-welcome beta-onboarding-howto beta-onboarding-invite beta-enrollment-empty beta-open-first beta-wrong-second beta-solved; do
             timeout --kill-after=5s 20s adb -s emulator-5554 pull "/data/local/tmp/$name.png" "beta-evidence/$name.png"
             test -s "beta-evidence/$name.png"
           done
@@ -168,13 +168,13 @@ jobs:
           from pathlib import Path
           import xml.etree.ElementTree as E
           root=Path('beta-evidence')
-          names={'enrollment.xml','keystore.xml','beta-enrollment-empty.png','beta-open-first.png','beta-wrong-second.png','beta-solved.png'}
+          names={'enrollment.xml','keystore.xml','beta-onboarding-welcome.png','beta-onboarding-howto.png','beta-onboarding-invite.png','beta-enrollment-empty.png','beta-open-first.png','beta-wrong-second.png','beta-solved.png'}
           assert {p.name for p in root.iterdir()}==names
           assert sum(p.stat().st_size for p in root.iterdir())<8*1024*1024
           for name in ['enrollment','keystore']:
               cases=list(E.parse(root/(name+'.xml')).getroot().iter('testcase'))
               assert len(cases)==1
-          print('PASS bounded synthetic evidence: 2 native XML receipts,4 named captures; no APK/private state/logs')
+          print('PASS bounded synthetic evidence: 2 native XML receipts,7 named captures; no APK/private state/logs')
           PY
       - name: Upload synthetic QA pixels and test receipts only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

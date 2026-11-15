@@ -13,17 +13,27 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import app.threadly.game.data.DeviceCredentials
 import app.threadly.game.data.HttpGameApi
+import app.threadly.game.data.OnboardingStore
 import app.threadly.game.ui.GameScreen
 import app.threadly.game.ui.GameViewModel
+import app.threadly.game.ui.ONBOARDING_VERSION
+import app.threadly.game.ui.OnboardingScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val device = DeviceCredentials(this)
+        val onboarding = OnboardingStore(this)
         setContent {
+            var showOnboarding by remember { mutableStateOf(!onboarding.isComplete(ONBOARDING_VERSION)) }
             var enrolled by remember { mutableStateOf(device.token() != null) }
-            if (enrolled) {
+            if (showOnboarding) {
+                OnboardingScreen(onFinish = {
+                    onboarding.markComplete(ONBOARDING_VERSION)
+                    showOnboarding = false
+                })
+            } else if (enrolled) {
                 val vm: GameViewModel = viewModel(key = "beta-" + device.sessionKey(), factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T =

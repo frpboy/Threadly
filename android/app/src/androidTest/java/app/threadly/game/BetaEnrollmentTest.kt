@@ -18,6 +18,25 @@ class BetaEnrollmentTest {
             java.io.FileInputStream(pfd.fileDescriptor).use { it.readBytes() }
         }
     }
+    /** First launch shows the one-time how-to-play flow; capture it before any credential entry, then finish it. */
+    private fun completeOnboardingIfShown() {
+        rule.waitUntil(15000) {
+            rule.onAllNodesWithTag("onboarding_next").fetchSemanticsNodes().isNotEmpty() ||
+                rule.onAllNodesWithText("Threadly native beta").fetchSemanticsNodes().isNotEmpty()
+        }
+        if (rule.onAllNodesWithTag("onboarding_next").fetchSemanticsNodes().isEmpty()) return
+        screenshot("beta-onboarding-welcome")
+        rule.onNodeWithTag("onboarding_next").performClick()
+        rule.waitForIdle()
+        screenshot("beta-onboarding-howto")
+        rule.onNodeWithTag("onboarding_next").performClick()
+        rule.onNodeWithTag("onboarding_next").performClick()
+        rule.waitForIdle()
+        screenshot("beta-onboarding-invite")
+        rule.onNodeWithTag("onboarding_next").performClick()
+        rule.waitUntil(15000) { rule.onAllNodesWithText("Threadly native beta").fetchSemanticsNodes().isNotEmpty() }
+    }
+
     @Test fun enrollsActualActivityPlaysAndResumesOnOwnedSyntheticServer() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         check(context.packageName.endsWith(".qa"))
@@ -26,6 +45,7 @@ class BetaEnrollmentTest {
         check(android.os.Process.myUid().toString()==args.getString("qaUid"))
         val invite=args.getString("beta_invitation") ?: error("Owned synthetic fixture invitation required")
         check(invite.matches(Regex("[A-Za-z0-9_-]{43}")))
+        completeOnboardingIfShown()
         rule.onNodeWithText("Threadly native beta").assertIsDisplayed()
         // Capture BEFORE entering invitation; no credential/code screenshots.
         screenshot("beta-enrollment-empty")
