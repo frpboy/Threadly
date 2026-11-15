@@ -1,0 +1,396 @@
+{
+  "version": 1,
+  "description": "Curated launch content for Threadly V1. One global five-clue puzzle per day, clues ordered broad to almost-revealing (content guidelines doc 14). All entries are original, human-written, and free of political, religious and offensive content.",
+  "puzzles": [
+    {
+      "id": "v1-001",
+      "answer": "Compass",
+      "category": "objects",
+      "difficulty": "easy",
+      "clues": [
+        "It needs no batteries or signal",
+        "Found in ships, planes and hiking packs",
+        "It has a needle but sews nothing",
+        "Its needle always settles in one direction",
+        "Its most famous letter is N"
+      ]
+    },
+    {
+      "id": "v1-002",
+      "answer": "Glacier",
+      "category": "nature",
+      "difficulty": "medium",
+      "clues": [
+        "It moves, but too slowly to watch",
+        "Made entirely of frozen fresh water",
+        "Over time it can carve out whole valleys",
+        "Chunks of it calve into the sea",
+        "A slow river of ice"
+      ]
+    },
+    {
+      "id": "v1-003",
+      "answer": "Keyboard",
+      "category": "tech",
+      "difficulty": "easy",
+      "clues": [
+        "You probably touch it every day",
+        "It has keys but opens no locks",
+        "It turns taps into text",
+        "QWERTY is its most famous layout",
+        "It sits in front of your monitor"
+      ]
+    },
+    {
+      "id": "v1-004",
+      "answer": "Lighthouse",
+      "category": "places",
+      "difficulty": "easy",
+      "clues": [
+        "It was built to be seen, not to see",
+        "It stands where land meets danger",
+        "It works hardest at night and in storms",
+        "Its beam sweeps in circles",
+        "It warns ships away from rocks"
+      ]
+    },
+    {
+      "id": "v1-005",
+      "answer": "Bamboo",
+      "category": "nature",
+      "difficulty": "medium",
+      "clues": [
+        "It is a grass, not a tree",
+        "Some kinds grow almost a meter in a day",
+        "Pandas rely on it almost completely",
+        "It is used for scaffolding, floors and instruments",
+        "Hollow stems, remarkable strength"
+      ]
+    },
+    {
+      "id": "v1-006",
+      "answer": "Pendulum",
+      "category": "science",
+      "difficulty": "medium",
+      "clues": [
+        "It keeps time by repeating one motion",
+        "Galileo studied its steady rhythm",
+        "It lives inside old grandfather clocks",
+        "Its period depends on length, not weight",
+        "It swings back and forth in a perfect arc"
+      ]
+    },
+    {
+      "id": "v1-007",
+      "answer": "Jigsaw",
+      "category": "games",
+      "difficulty": "easy",
+      "clues": [
+        "A picture broken into pieces",
+        "Edges and corners usually come first",
+        "It is solved slowly, on a table",
+        "Every piece has exactly one home",
+        "The final piece is the most satisfying"
+      ]
+    },
+    {
+      "id": "v1-008",
+      "answer": "Metronome",
+      "category": "music",
+      "difficulty": "medium",
+      "clues": [
+        "A practice companion, not a performer",
+        "It never plays a note itself",
+        "Musicians set its tempo before playing",
+        "Its arm ticks steadily side to side",
+        "It keeps the beat so you can too"
+      ]
+    },
+    {
+      "id": "v1-009",
+      "answer": "Origami",
+      "category": "arts",
+      "difficulty": "easy",
+      "clues": [
+        "No scissors and no glue allowed",
+        "An art form associated with Japan",
+        "The crane is its classic subject",
+        "It turns a flat sheet into sculpture",
+        "The art of paper folding"
+      ]
+    },
+    {
+      "id": "v1-010",
+      "answer": "Submarine",
+      "category": "vehicles",
+      "difficulty": "easy",
+      "clues": [
+        "A vessel with no view of the sky",
+        "It travels beneath the waves",
+        "Ballast tanks let it dive and surface",
+        "A periscope peeks above the water",
+        "A ship that sails underwater"
+      ]
+    },
+    {
+      "id": "v1-011",
+      "answer": "Dominoes",
+      "category": "games",
+      "difficulty": "medium",
+      "clues": [
+        "Small tiles, big chain reactions",
+        "Each piece carries two numbers",
+        "Line them up and tip the first one",
+        "World records involve millions falling in sequence",
+        "The game and the toppling effect share a name"
+      ]
+    },
+    {
+      "id": "v1-012",
+      "answer": "Cache",
+      "category": "tech",
+      "difficulty": "hard",
+      "clues": [
+        "It remembers so you do not have to wait",
+        "Your browser keeps one for images",
+        "It trades memory for speed",
+        "Clearing it fixes many mysterious bugs",
+        "A small, fast store for recently used data"
+      ]
+    },
+    {
+      "id": "v1-013",
+      "answer": "Kernel",
+      "category": "tech",
+      "difficulty": "hard",
+      "clues": [
+        "It is the core, not the shell",
+        "Every operating system has one",
+        "It manages hardware, memory and processes",
+        "Linux is the most famous example",
+        "The heart of an OS"
+      ]
+    },
+    {
+      "id": "v1-014",
+      "answer": "Pixel",
+      "category": "tech",
+      "difficulty": "easy",
+      "clues": [
+        "Too small to notice on its own",
+        "Screens are measured in millions of them",
+        "Digital photos are grids of them",
+        "Its name is short for picture element",
+        "The smallest dot of light on your display"
+      ]
+    },
+    {
+      "id": "v1-015",
+      "answer": "Trebuchet",
+      "category": "history",
+      "difficulty": "hard",
+      "clues": [
+        "A machine from medieval times",
+        "It throws things without gunpowder",
+        "A heavy counterweight does the work",
+        "It could hurl stones over castle walls",
+        "The internet's favorite siege engine"
+      ]
+    },
+    {
+      "id": "v1-016",
+      "answer": "Aurora",
+      "category": "nature",
+      "difficulty": "medium",
+      "clues": [
+        "A light show with no ticket price",
+        "Best seen far north or far south",
+        "Charged particles from the Sun cause it",
+        "Green and purple curtains ripple across the night sky",
+        "Also called the northern lights"
+      ]
+    },
+    {
+      "id": "v1-017",
+      "answer": "Abacus",
+      "category": "objects",
+      "difficulty": "medium",
+      "clues": [
+        "A calculator with no electricity",
+        "Beads slide along rods",
+        "People have used it for thousands of years",
+        "It is still taught in some schools today",
+        "An ancient counting frame"
+      ]
+    },
+    {
+      "id": "v1-018",
+      "answer": "Hologram",
+      "category": "tech",
+      "difficulty": "medium",
+      "clues": [
+        "A picture with depth but no substance",
+        "It is made by interfering light waves",
+        "You can find one on many credit cards",
+        "It changes as you view it from different angles",
+        "A three-dimensional image made of light"
+      ]
+    },
+    {
+      "id": "v1-019",
+      "answer": "Zipline",
+      "category": "activities",
+      "difficulty": "easy",
+      "clues": [
+        "A ride with no engine",
+        "Gravity is the only fuel",
+        "You hang in a harness from a pulley",
+        "A helmet is usually required",
+        "A cable strung between two heights"
+      ]
+    },
+    {
+      "id": "v1-020",
+      "answer": "Chameleon",
+      "category": "animals",
+      "difficulty": "easy",
+      "clues": [
+        "A lizard with a remarkable tongue",
+        "Its two eyes can look in different directions",
+        "It is famous for changing color",
+        "Its tongue strikes faster than you can blink",
+        "A walking master of camouflage"
+      ]
+    },
+    {
+      "id": "v1-021",
+      "answer": "Semaphore",
+      "category": "communication",
+      "difficulty": "hard",
+      "clues": [
+        "A language without any words",
+        "It uses two hand-held flags",
+        "Sailors and scouts have used it",
+        "Each letter is a pair of arm positions",
+        "Signaling with flags"
+      ]
+    },
+    {
+      "id": "v1-022",
+      "answer": "Tide",
+      "category": "nature",
+      "difficulty": "medium",
+      "clues": [
+        "It comes in and goes out about twice a day",
+        "The Moon's gravity drives it",
+        "Fishermen and surfers always check it",
+        "High and low mark the shore's rhythm",
+        "The sea's daily breathing"
+      ]
+    },
+    {
+      "id": "v1-023",
+      "answer": "Observatory",
+      "category": "places",
+      "difficulty": "medium",
+      "clues": [
+        "A building that looks up",
+        "Its dome opens after dark",
+        "Telescopes live inside it",
+        "It is built far from city lights",
+        "A home for watching the stars"
+      ]
+    },
+    {
+      "id": "v1-024",
+      "answer": "Labyrinth",
+      "category": "places",
+      "difficulty": "hard",
+      "clues": [
+        "It is not quite a maze",
+        "One path, no dead ends",
+        "Ancient coins and floors carry its pattern",
+        "Walking it is meant to be meditative",
+        "A single winding path to the center"
+      ]
+    },
+    {
+      "id": "v1-025",
+      "answer": "Recursion",
+      "category": "tech",
+      "difficulty": "hard",
+      "clues": [
+        "A concept that refers to itself",
+        "Functions can call themselves",
+        "It needs a base case to stop",
+        "A favorite topic in computer science interviews",
+        "To understand it, you must first understand it"
+      ]
+    },
+    {
+      "id": "v1-026",
+      "answer": "Darkroom",
+      "category": "places",
+      "difficulty": "medium",
+      "clues": [
+        "Pictures appear here very slowly",
+        "Red light is the only safe light",
+        "Film is developed inside it",
+        "Trays of chemicals do the work",
+        "Where analog photographs are born"
+      ]
+    },
+    {
+      "id": "v1-027",
+      "answer": "Sundial",
+      "category": "objects",
+      "difficulty": "medium",
+      "clues": [
+        "A clock with no moving parts",
+        "It is useless on a cloudy day",
+        "A shadow tells the time",
+        "Its slanted piece is called a gnomon",
+        "The oldest timekeeper in the garden"
+      ]
+    },
+    {
+      "id": "v1-028",
+      "answer": "Kaleidoscope",
+      "category": "objects",
+      "difficulty": "medium",
+      "clues": [
+        "A toy made with mirrors",
+        "Turn it and the pattern changes",
+        "Colored fragments tumble inside",
+        "No two views are exactly alike",
+        "Endless symmetry in a tube"
+      ]
+    },
+    {
+      "id": "v1-029",
+      "answer": "Typewriter",
+      "category": "objects",
+      "difficulty": "easy",
+      "clues": [
+        "A machine made for writing",
+        "Its keys strike an inked ribbon",
+        "No delete key, only correction tape",
+        "Its letter layout lives on in your computer",
+        "Click-clack publishing"
+      ]
+    },
+    {
+      "id": "v1-030",
+      "answer": "Bridge",
+      "category": "places",
+      "difficulty": "easy",
+      "clues": [
+        "It exists to span a gap",
+        "Engineers choose arch, beam or suspension",
+        "It carries roads over water and valleys",
+        "The Golden Gate is a famous one",
+        "A link between two shores"
+      ]
+    }
+  ]
+}
