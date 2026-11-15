@@ -11,7 +11,7 @@ class OnboardingStore(context: Context) {
 
     fun isComplete(version: Int): Boolean = prefs.getInt("completed_version", 0) >= version
 
-    fun markComplete(version: Int) {
-        check(prefs.edit().putInt("completed_version", version).commit()) { "Could not save onboarding state" }
-    }
+    /** Returns false when the write failed; callers must keep the flow visible and retry, never assume saved. */
+    fun tryMarkComplete(version: Int): Boolean =
+        try { prefs.edit().putInt("completed_version", version).commit() } catch (_: Exception) { false }
 }

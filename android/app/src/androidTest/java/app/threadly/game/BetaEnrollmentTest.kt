@@ -71,5 +71,11 @@ class BetaEnrollmentTest {
         rule.waitUntil(15000) { rule.onAllNodesWithText("Correct!",substring=true).fetchSemanticsNodes().isNotEmpty() }
         assertTrue(app.threadly.game.data.DeviceCredentials(context).token()!=null)
         assertNull(app.threadly.game.data.DeviceCredentials(context).pending())
+        // Enrolled upgrader path: credential exists but the onboarding flag is gone
+        // (an install from before onboarding shipped). The flow must NOT replay.
+        check(context.getSharedPreferences("threadly_onboarding", Context.MODE_PRIVATE).edit().clear().commit())
+        rule.activityRule.scenario.recreate()
+        rule.waitUntil(15000) { rule.onAllNodesWithText("Correct!",substring=true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithTag("onboarding_next").fetchSemanticsNodes().let { check(it.isEmpty()) { "Onboarding replayed for an enrolled install" } }
     }
 }

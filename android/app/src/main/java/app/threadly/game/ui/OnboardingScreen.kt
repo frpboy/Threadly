@@ -10,7 +10,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -24,7 +26,7 @@ private val OnboardingMuted = Color(0xFFAAB0C0)
  * [onFinish] exactly once per tap; the caller persists completion so this is never forced again.
  */
 @Composable
-fun OnboardingScreen(onFinish: () -> Unit, flow: OnboardingFlow = remember { OnboardingFlow() }) {
+fun OnboardingScreen(onFinish: () -> Unit, flow: OnboardingFlow = remember { OnboardingFlow() }, saveFailed: Boolean = false) {
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
             Modifier.fillMaxSize().background(OnboardingBg).safeDrawingPadding().padding(24.dp),
@@ -50,6 +52,13 @@ fun OnboardingScreen(onFinish: () -> Unit, flow: OnboardingFlow = remember { Onb
                 Text(flow.current.body, color = OnboardingMuted, fontSize = 18.sp)
             }
             Spacer(Modifier.weight(1f))
+            if (saveFailed) {
+                Text(
+                    "Could not save. Check your device storage and try again.",
+                    color = Color(0xFFFFD479), fontSize = 16.sp,
+                    modifier = Modifier.padding(bottom = 12.dp).semantics { liveRegion = LiveRegionMode.Polite },
+                )
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 if (!flow.isFirst) {
                     OutlinedButton(

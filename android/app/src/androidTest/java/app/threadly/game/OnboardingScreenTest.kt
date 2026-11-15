@@ -14,8 +14,8 @@ import org.junit.Test
 class OnboardingScreenTest {
     @get:Rule val rule = createComposeRule()
 
-    private fun show(flow: OnboardingFlow = OnboardingFlow(), onFinish: () -> Unit = {}) {
-        rule.setContent { OnboardingScreen(onFinish = onFinish, flow = flow) }
+    private fun show(flow: OnboardingFlow = OnboardingFlow(), saveFailed: Boolean = false, onFinish: () -> Unit = {}) {
+        rule.setContent { OnboardingScreen(onFinish = onFinish, flow = flow, saveFailed = saveFailed) }
         rule.waitForIdle()
     }
 
@@ -49,6 +49,13 @@ class OnboardingScreenTest {
         show { finished += 1 }
         rule.onNodeWithTag("onboarding_skip").performClick()
         assertEquals(1, finished)
+    }
+
+    @Test fun saveFailureShowsRetryableError() {
+        val flow = OnboardingFlow()
+        show(flow, saveFailed = true)
+        rule.onNodeWithText("Could not save. Check your device storage and try again.").assertIsDisplayed()
+        rule.onNodeWithTag("onboarding_next").assertHasClickAction()
     }
 
     @Test fun buttonsMeetMinimumTouchSize() {

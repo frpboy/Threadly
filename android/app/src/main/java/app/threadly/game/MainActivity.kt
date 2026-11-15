@@ -26,12 +26,19 @@ class MainActivity : ComponentActivity() {
         val device = DeviceCredentials(this)
         val onboarding = OnboardingStore(this)
         setContent {
-            var showOnboarding by remember { mutableStateOf(!onboarding.isComplete(ONBOARDING_VERSION)) }
+            // First-install flow only: an existing device credential means an upgrading
+            // already-enrolled install, which keeps its current path with no replay.
+            var showOnboarding by remember { mutableStateOf(device.token() == null && !onboarding.isComplete(ONBOARDING_VERSION)) }
+            var onboardingSaveFailed by remember { mutableStateOf(false) }
             var enrolled by remember { mutableStateOf(device.token() != null) }
             if (showOnboarding) {
-                OnboardingScreen(onFinish = {
-                    onboarding.markComplete(ONBOARDING_VERSION)
-                    showOnboarding = false
+                OnboardingScreen(saveFailed = onboardingSaveFailed, onFinish = {
+                    if (onboarding.tryMarkComplete(ONBOARDING_VERSION)) {
+                        onboardingSaveFailed = false
+                        showOnboarding = false
+                    } else {
+                        onboardingSaveFailed = true
+                    }
                 })
             } else if (enrolled) {
                 val vm: GameViewModel = viewModel(key = "beta-" + device.sessionKey(), factory = object : ViewModelProvider.Factory {
