@@ -4,6 +4,7 @@ import {
   rebuildEnvelope,
   finalTransportFactoryWith,
   resetFinalTransportRateForTest,
+  admitEventAtForTest,
 } from './sentryFinalTransport';
 import { GENERIC_ERROR_MESSAGE } from './sentryGenericErrorBoundary';
 
@@ -95,15 +96,32 @@ test('rebuild: the optional route label is dropped at the final transport (struc
   assert.deepEqual(Object.keys(payload).sort(), ['event_id', 'exception', 'fingerprint', 'level', 'platform', 'timestamp'].sort());
 });
 
-test('rate: at most 30 events per process per minute reach the HTTP layer', async () => {
+test('rate: at most 1 event per minute reaches the HTTP layer', async () => {
   resetFinalTransportRateForTest();
   const bodies = [];
   const factory = finalTransportFactoryWith(async (req) => { bodies.push(req.body); return { statusCode: 'success' }; });
   const transport = factory({ url: 'http://127.0.0.1/1', headers: {} });
-  for (let i = 0; i < 35; i++) {
+  for (let i = 0; i < 5; i++) {
     await transport.send(envelopeWith(hostileEventPayload()));
   }
-  assert.equal(bodies.length, 30, 'rate limit not enforced: ' + bodies.length);
+  assert.equal(bodies.length, 1, 'minute cap not enforced: ' + bodies.length);
+});
+
+test('rate: sliding log admits at most 1/minute and 10/hour (fabricated clock)', () => {
+  resetFinalTransportRateForTest();
+  const base = 1_800_000_000_000;
+  // Two admissions inside the same minute: the second is refused.
+  assert.equal(admitEventAtForTest(base), true);
+  assert.equal(admitEventAtForTest(base + 5_000), false);
+  // One per minute is admitted; 61s spacing keeps the minute rule satisfied.
+  resetFinalTransportRateForTest();
+  for (let i = 0; i < 10; i++) {
+    assert.equal(admitEventAtForTest(base + i * 61_000), true, 'admission ' + i + ' refused early');
+  }
+  // The 11th inside the trailing hour is refused even though a minute passed.
+  assert.equal(admitEventAtForTest(base + 10 * 61_000), false, 'hour cap not enforced');
+  // After an hour has fully passed, admission resumes.
+  assert.equal(admitEventAtForTest(base + 3_700_000), true, 'admission did not resume after the window');
 });
 
 test('drop busy: sends while one is in flight are dropped, never queued; flush settles', async () => {

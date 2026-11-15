@@ -24,37 +24,52 @@ import { GENERIC_ERROR_MESSAGE } from "./sentryGenericErrorBoundary";
  *  - FRESH HEADERS: envelope headers are rebuilt (fresh event_id, fresh
  *    sent_at); the SDK's trace header (dynamic sampling context can carry
  *    request/user data) is never forwarded.
- *  - RATE: at most RATE_MAX events per process per minute; excess dropped.
- *  - DROP BUSY: at most MAX_IN_FLIGHT sends in flight; beyond that the
- *    event is dropped, never queued or retried.
+ *  - RATE: at most 1 event per minute and 10 per hour, per runtime module.
+ *    Every event is the same constant shape (one grouped issue in Sentry),
+ *    so a minimal count signal is all that is useful; this is a volume cap,
+ *    not a budget quota. Excess dropped.
+ *  - DROP BUSY: one send in flight; beyond that the event is dropped,
+ *    never queued or retried.
  *
  * Dropped work resolves as a success result so the SDK never retries; the
  * underlying fetch transport still honors Sentry's own rate-limit headers.
  */
 
-const RATE_MAX = 30;
-const RATE_WINDOW_MS = 60_000;
-// Process-wide sliding window, shared by every transport instance: at most
-// RATE_MAX events admitted in ANY trailing RATE_WINDOW_MS span (no burst
-// at a fixed window boundary).
+const MINUTE_MS = 60_000;
+const HOUR_MS = 3_600_000;
+const MINUTE_MAX = 1;
+const HOUR_MAX = 10;
+// Sliding admission log, shared by every transport instance in this
+// runtime: at most MINUTE_MAX event in any trailing minute and HOUR_MAX in
+// any trailing hour.
 const admittedTimestamps: number[] = [];
-/** Test seam: reset the process-wide rate window. */
+/** Test seams: reset the admission log, or admit against a fabricated clock. */
 export function resetFinalTransportRateForTest(): void {
   admittedTimestamps.length = 0;
 }
+export function admitEventAtForTest(now: number): boolean {
+  return admitEventAt(now);
+}
 
-function admitEvents(count: number): boolean {
-  const now = Date.now();
-  while (admittedTimestamps.length > 0 && now - admittedTimestamps[0] >= RATE_WINDOW_MS) {
+function admitEventAt(now: number): boolean {
+  while (admittedTimestamps.length > 0 && now - admittedTimestamps[0] >= HOUR_MS) {
     admittedTimestamps.shift();
   }
-  if (admittedTimestamps.length + count > RATE_MAX) return false;
-  for (let i = 0; i < count; i++) admittedTimestamps.push(now);
+  let inLastMinute = 0;
+  for (let i = admittedTimestamps.length - 1; i >= 0 && now - admittedTimestamps[i] < MINUTE_MS; i--) {
+    inLastMinute++;
+  }
+  if (inLastMinute >= MINUTE_MAX) return false;
+  if (admittedTimestamps.length >= HOUR_MAX) return false;
+  admittedTimestamps.push(now);
   return true;
 }
 const MAX_IN_FLIGHT = 1;
-// Hard upper bound for one HTTP attempt: a hung connection is aborted and
-// the event dropped, never left pending. Keeps the busy gate bounded.
+// Cooperative deadline for one HTTP attempt: a hung connection is aborted
+// and the event dropped. Abort is cooperative - if a pathological
+// connection ignores it, the stuck send may hold the busy gate
+// indefinitely and flush reports false: safe suppression (nothing extra is
+// ever sent), never an unbounded queue.
 const REQUEST_DEADLINE_MS = 10_000;
 
 type MakeRequest = (request: TransportRequest) => Promise<TransportMakeRequestResponse>;
@@ -130,6 +145,7 @@ async function defaultMakeRequest(
       headers: { "content-type": "application/x-sentry-envelope" },
       referrerPolicy: "no-referrer",
       redirect: "error",
+      credentials: "omit",
       signal: controller.signal,
     });
     const result: TransportMakeRequestResponse = {
@@ -189,7 +205,7 @@ function buildFinalTransport(options: BaseTransportOptions, makeRequest: MakeReq
     async send(envelope: any): Promise<TransportMakeRequestResponse> {
       const rebuilt = rebuildEnvelope(envelope);
       if (!rebuilt) return { statusCode: 200 }; // nothing sendable
-      if (!admitEvents(rebuilt.count)) return { statusCode: 200 }; // rate: dropped
+      if (!admitEventAt(Date.now())) return { statusCode: 200 }; // rate: dropped
       if (inFlight >= MAX_IN_FLIGHT) return { statusCode: 200 }; // dropped, no queue
       inFlight++;
       try {
