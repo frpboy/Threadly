@@ -143,7 +143,7 @@ jobs:
           units=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
           assert units, 'missing unit XML'
           unitcases=[c for p in units for c in E.parse(p).getroot().iter('testcase')]
-          assert len(unitcases)==65, 'unexpected unit discovery '+str(len(unitcases))
+          assert len(unitcases)==69, 'unexpected unit discovery '+str(len(unitcases))
           assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in unitcases)
           paths=glob.glob('android/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
           assert paths, 'missing instrumentation XML'

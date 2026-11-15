@@ -61,7 +61,8 @@ class HttpGameApi(private val baseUrl: String, private val device: BetaCredentia
         if (r.code != 200) return null
         return try {
             Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5),
-                j.optString("published_date").takeIf { it.length >= 10 && it.substring(0, 10).matches(Regex("""\d{4}-\d{2}-\d{2}""")) }?.substring(0, 10))
+                // A nonexistent date (2026-02-30) is unknown, never shown or persisted.
+                j.optString("published_date").takeIf { it.length >= 10 && LocalStats.isValidIsoDay(it.substring(0, 10)) }?.substring(0, 10))
         } catch (_: JSONException) { throw IOException("Invalid puzzle response") }
     }
 

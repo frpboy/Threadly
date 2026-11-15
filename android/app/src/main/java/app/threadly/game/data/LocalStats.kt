@@ -29,6 +29,18 @@ data class StatsSummary(
 
 object LocalStats {
 
+    /** True only for a real calendar date in yyyy-MM-dd form (leap-year aware). "2026-02-30" or "2026-13-01" is false. */
+    fun isValidIsoDay(iso: String): Boolean {
+        if (!iso.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) return false
+        val y = iso.substring(0, 4).toInt()
+        val m = iso.substring(5, 7).toInt()
+        val d = iso.substring(8, 10).toInt()
+        if (m < 1 || m > 12) return false
+        val leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+        val dim = intArrayOf(31, if (leap) 29 else 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        return d in 1..dim[m - 1]
+    }
+
     /**
      * Days from 1970-01-01 for an ISO yyyy-MM-dd date (Howard Hinnant's
      * days-from-civil). Pure arithmetic so it works on minSdk 24 without

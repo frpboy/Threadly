@@ -32,7 +32,11 @@ class StatsStore internal constructor(private val kv: KvStore) {
 
     internal class StoreException(message: String) : Exception(message)
 
-    /** Empty list when nothing is stored. Throws StoreException when stored data is unreadable. */
+    /**
+     * Empty list when nothing is stored. Throws StoreException when stored data is
+     * unreadable OR semantically invalid (for example an impossible day): one bad
+     * record makes the whole history fail-closed, never silently dropped or wiped.
+     */
     fun results(): List<GameResult> {
         val raw = try { kv.read() } catch (e: Exception) { throw StoreException("read failed: ${e.javaClass.simpleName}") }
         if (raw == null) return emptyList()
@@ -46,8 +50,14 @@ class StatsStore internal constructor(private val kv: KvStore) {
                     solved = o.getBoolean("solved"),
                     cluesUsed = o.getInt("cluesUsed"),
                     score = o.getInt("score"),
-                )
+                ).also { r ->
+                    // date math is pure arithmetic: an absurd day computes garbage
+                    // silently, so validate semantics, not just shape
+                    if (!LocalStats.isValidIsoDay(r.day)) throw StoreException("unreadable history")
+                }
             }
+        } catch (e: StoreException) {
+            throw e
         } catch (e: Exception) {
             throw StoreException("unreadable history")
         }
@@ -59,11 +69,27 @@ class StatsStore internal constructor(private val kv: KvStore) {
      * reports true without writing). Returns false without writing when the
      * existing history is unreadable or the commit fails.
      */
+    /**
+     * True when this instance's last write returned failure after possibly mutating
+     * in-memory state. SharedPreferences.commit() updates memory BEFORE the disk
+     * result, so a failed commit can leave the row visible to later reads in this
+     * process while nothing is durable (SharedPreferencesImpl source-confirmed).
+     */
+    private var lastWriteInDoubt = false
+
     fun tryRecord(result: GameResult): Boolean {
         val current = try { results() } catch (_: StoreException) { return false }
-        if (current.any { it.puzzleId == result.puzzleId }) return true
+        if (current.any { it.puzzleId == result.puzzleId }) {
+            // The duplicate may exist only in memory after a failed commit. Recommit the
+            // unchanged history before claiming durable success; never a silent no-op true.
+            return if (lastWriteInDoubt) commit(current) else true
+        }
+        return commit(current + result)
+    }
+
+    private fun commit(records: List<GameResult>): Boolean {
         val arr = JSONArray()
-        (current + result).forEach { r ->
+        records.forEach { r ->
             arr.put(JSONObject()
                 .put("puzzleId", r.puzzleId)
                 .put("day", r.day)
@@ -71,13 +97,19 @@ class StatsStore internal constructor(private val kv: KvStore) {
                 .put("cluesUsed", r.cluesUsed)
                 .put("score", r.score))
         }
-        return kv.write(arr.toString())
+        val ok = kv.write(arr.toString())
+        lastWriteInDoubt = !ok
+        return ok
     }
 
-    /** Never throws: an unreadable history degrades to an empty summary. */
+    /**
+     * Never throws: unreadable or semantically corrupt history (for example an
+     * impossible day that breaks date math) degrades to an empty summary. This is
+     * called directly from composition, so no exception type may escape.
+     */
     fun summary(today: String): StatsSummary = try {
         LocalStats.summarize(results(), today)
-    } catch (_: StoreException) {
+    } catch (_: Exception) {
         StatsSummary(0, 0, 0, 0, emptyMap())
     }
 

@@ -18,7 +18,49 @@ private class FakeKv(var data: String? = null, var writeOk: Boolean = true) : St
 private fun result(id: String, day: String = "2026-11-15", solved: Boolean = true) =
     GameResult(id, day, solved, 2, 80)
 
+/**
+ * Mirrors real SharedPreferences commit semantics (SharedPreferencesImpl): memory
+ * mutates BEFORE the disk result, so a failed commit leaves the row readable in
+ * this process while nothing is durable.
+ */
+private class PrefsLikeKv(var diskOk: Boolean = true) : StatsStore.KvStore {
+    var memory: String? = null
+    var disk: String? = null
+    override fun read(): String? = memory
+    override fun write(value: String): Boolean {
+        memory = value
+        if (diskOk) { disk = value; return true }
+        return false
+    }
+}
+
 class StatsStoreTest {
+
+    @Test fun failedCommitMemoryRowIsRecommittedBeforeDurableSuccess() {
+        val kv = PrefsLikeKv(diskOk = false)
+        val store = StatsStore(kv)
+        assertFalse(store.tryRecord(result("p1")))
+        assertNotNull(kv.memory)   // failed commit still leaves the row visible in memory
+        assertNull(kv.disk)        // but nothing is durable
+        kv.diskOk = true
+        // The in-memory duplicate must not be reported as durable: a recommit is required.
+        assertTrue(store.tryRecord(result("p1")))
+        assertNotNull(kv.disk)
+        assertTrue(kv.disk!!.contains("p1"))
+    }
+
+    @Test fun semanticallyCorruptHistoryIsFailClosedAndPreserved() {
+        // structurally valid JSON, semantically impossible day: date math would compute
+        // garbage silently, so the whole history goes fail-closed like structural corruption
+        val kv = FakeKv(data = """[{"puzzleId":"p0","day":"2026-13-40","solved":true,"cluesUsed":1,"score":100}]""")
+        val store = StatsStore(kv)
+        try { store.results(); fail("expected StoreException") } catch (_: StatsStore.StoreException) {}
+        val sum = store.summary("2026-11-15")      // must not crash composition
+        assertEquals(0, sum.played); assertEquals(0, sum.wins)
+        assertFalse(store.tryRecord(result("p1"))) // fail-closed: nothing written over corrupt history
+        assertTrue(kv.writes.isEmpty())
+        assertTrue(kv.data!!.contains("2026-13-40")) // corrupt bytes preserved verbatim
+    }
 
     @Test fun recordPersistsAcrossInstancesRestart() {
         val kv = FakeKv()

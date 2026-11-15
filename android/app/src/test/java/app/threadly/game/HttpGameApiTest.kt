@@ -20,6 +20,18 @@ class HttpGameApiTest {
         val d = HttpGameApi(s.url("/").toString().trimEnd('/')).daily()
         assertEquals("p1", d?.puzzleId); assertEquals(2, s.requestCount); s.shutdown()
     }
+    @Test fun validPublishedDateIsCarried() = runBlocking {
+        val s = server(ok("""{"puzzle_id":"p1","title":"T","total_clues":5,"published_date":"2026-11-14"}"""))
+        val d = HttpGameApi(s.url("/").toString().trimEnd('/')).daily()
+        assertEquals("2026-11-14", d?.publishedDate); s.shutdown()
+    }
+    @Test fun nonexistentOrMalformedPublishedDateIsUnknownNotShown() = runBlocking {
+        for (bad in listOf("2026-02-30", "2026-13-01", "2026-11-5", "not-a-date")) {
+            val s = server(ok("""{"puzzle_id":"p1","title":"T","total_clues":5,"published_date":"$bad"}"""))
+            val d = HttpGameApi(s.url("/").toString().trimEnd('/')).daily()
+            assertNull("$bad must be treated as unknown", d?.publishedDate); s.shutdown()
+        }
+    }
     @Test fun guessBodyHasNoClueCountAndNoRetryOn409() = runBlocking {
         val s = server(MockResponse().setResponseCode(409).setBody("""{"already_solved":true}"""))
         val out = HttpGameApi(s.url("/").toString().trimEnd('/')).guess("p1", "g1", "batman")

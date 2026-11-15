@@ -62,7 +62,7 @@ class RealGateTest(unittest.TestCase):
         # Per-file pins: each workflow asserts the tree/counts of the branch content it serves.
         self.assertIn('len(unitcases)==24',real)
         self.assertIn('ea75d38aacf7deaa3976d8c2205ef790682a5928',real)
-        self.assertIn('len(unitcases)==65',synthetic)
+        self.assertIn('len(unitcases)==69',synthetic)
         self.assertIn('3cb8fed53f003911d40c4663e0c45aaafee00373',synthetic)
         for workflow in (real, synthetic):
             self.assertIn('group: threadly-native-qualification-${{ github.ref }}',workflow)
