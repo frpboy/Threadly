@@ -1,5 +1,6 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Legacy full-bleed icon for API 24-25 (below adaptive-icon support). Identical to the pre-adaptive brand tile. -->
     <path android:fillColor="#12141C" android:pathData="M0,0h108v108h-108z"/>
     <path android:strokeColor="#FFD479" android:strokeWidth="6" android:strokeLineCap="round"
         android:pathData="M30,38 L54,70 L78,38"/>
