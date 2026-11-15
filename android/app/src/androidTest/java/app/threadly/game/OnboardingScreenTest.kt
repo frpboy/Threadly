@@ -2,6 +2,7 @@ package app.threadly.game
 
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.dp
 import app.threadly.game.ui.ONBOARDING_STEPS
 import app.threadly.game.ui.OnboardingFlow
 import app.threadly.game.ui.OnboardingScreen
