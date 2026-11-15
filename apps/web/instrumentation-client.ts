@@ -34,7 +34,6 @@ Sentry.init({
 // Session Replay is intentionally NOT configured. Its recording integration
 // must never be added without a privacy review of its DOM capture boundary.
 
-/**
- * Track App Router navigation transitions in Sentry.
- */
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+// Navigation-transition tracking intentionally not wired: the installed
+// @sentry/nextjs 8.55.x does not export captureRouterTransitionStart, and
+// with tracesSampleRate 0 there are no navigation transactions to track.
