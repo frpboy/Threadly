@@ -5,6 +5,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import app.threadly.game.data.HttpGameApi
+import app.threadly.game.data.StatsStore
 import app.threadly.game.ui.GameScreen
 import app.threadly.game.ui.GameViewModel
 import java.io.FileInputStream
@@ -21,6 +22,7 @@ import kotlin.concurrent.thread
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
@@ -97,7 +99,13 @@ class LoopbackHttpUiTest {
         startFixture(*replies)
         return vm()
     }
-    private fun vm() = GameViewModel(HttpGameApi(BuildConfig.API_BASE), guest)
+    @Before fun resetStats() {
+        // Deterministic stats pixels: every test starts from empty local history.
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("threadly_stats", android.content.Context.MODE_PRIVATE)
+            .edit().clear().commit()
+    }
+    private fun vm() = GameViewModel(HttpGameApi(BuildConfig.API_BASE), guest, stats = StatsStore(InstrumentationRegistry.getInstrumentation().targetContext))
     private fun waitFor(text: String) { rule.waitUntilExactlyOneExists(hasText(text), 8000) }
     private fun submit() { rule.onNodeWithTag("guess_input").performTextInput("answer"); rule.onNodeWithText("Guess").performClick() }
     private fun shot(name: String) {
@@ -119,6 +127,11 @@ class LoopbackHttpUiTest {
         rule.runOnIdle { current.value = vm() }
         waitFor("Correct! +80 points. Answer: sentinel-answer")
         rule.waitUntil(8000) { server!!.requests.size == 6 }
+        // Finished screen extras: spoiler-free share card and local stats section.
+        rule.onNodeWithTag("share_result").assertIsDisplayed()
+        rule.onNodeWithText("Solved in 2 clues - 80 points", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Your stats").assertIsDisplayed()
+        rule.onNodeWithText("Played 1 · Won 1 (100%) · Streak 1 · Best 1").assertIsDisplayed()
         server!!.verify(); assertEquals(1, server!!.requests.count { it == "/api/guess" }); shot("loopback-solved")
     }
     @Test fun actualHttp409ResyncsExhausted() {

@@ -1,7 +1,7 @@
 name: Threadly synthetic native HTTP loopback QA
 on:
   push:
-    branches: ['fix/android-progress-api-20261107']
+    branches: ['fix/android-progress-api-20261107', 'content/curated-puzzles-v1']
     paths: ['android/**', '.github/workflows/android-loopback-qa.yml']
 permissions:
   contents: read
@@ -24,7 +24,7 @@ jobs:
           git rev-parse HEAD HEAD^{tree}
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           git merge-base --is-ancestor 5f496a606499b8000d24e7bea446c6b26a1fb57b HEAD
-          test "$(git rev-parse HEAD:apps/web)" = "ea75d38aacf7deaa3976d8c2205ef790682a5928"
+          test "$(git rev-parse HEAD:apps/web)" = "3cb8fed53f003911d40c4663e0c45aaafee00373"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
           grep -F '"https://threadly-ruddy.vercel.app"' android/app/build.gradle
@@ -143,7 +143,7 @@ jobs:
           units=glob.glob('android/app/build/test-results/testQaUnitTest/TEST-*.xml')
           assert units, 'missing unit XML'
           unitcases=[c for p in units for c in E.parse(p).getroot().iter('testcase')]
-          assert len(unitcases)==24, 'unexpected unit discovery '+str(len(unitcases))
+          assert len(unitcases)==55, 'unexpected unit discovery '+str(len(unitcases))
           assert all(not any(c.find(x) is not None for x in ['failure','error','skipped']) for c in unitcases)
           paths=glob.glob('android/app/build/outputs/androidTest-results/connected/**/*.xml',recursive=True)
           assert paths, 'missing instrumentation XML'
