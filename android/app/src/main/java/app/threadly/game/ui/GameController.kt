@@ -14,18 +14,22 @@ sealed interface UiState {
     data object Loading : UiState
     data class Error(val message: String) : UiState
     data class Playing(
-        val puzzleId: String, val title: String, val progress: Progress,
+        val puzzleId: String, val title: String, val puzzleDay: String, val progress: Progress,
         val notice: String = "", val submitting: Boolean = false,
     ) : UiState
-    data class Finished(val puzzleId: String, val title: String, val progress: Progress, val notice: String) : UiState
+    data class Finished(
+        val puzzleId: String, val title: String, val puzzleDay: String, val progress: Progress, val notice: String,
+        /** False only when a stats store exists but has not durably saved this result yet; a later render retries. */
+        val statsSaved: Boolean = true,
+    ) : UiState
 }
 
 /** Pure game flow over [GameApi]. The server is the only source of truth for clues, guesses, score and finish state. */
 class GameController(
     private val api: GameApi,
     private val guestId: String,
-    /** Best-effort local stats hook: called once per finished daily game. Recording must never break gameplay. */
-    private val recorder: ((GameResult) -> Unit)? = null,
+    /** Local stats hook returning true only when the result is durably saved. Failures stay unrecorded so a later render retries; recording never breaks gameplay. */
+    private val recorder: ((GameResult) -> Boolean)? = null,
     /** UTC date of play, ISO yyyy-MM-dd. Injectable for tests. Calendar, not java.time: minSdk 24 has no desugaring. */
     private val clock: () -> String = {
         val c = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
@@ -38,7 +42,10 @@ class GameController(
         val daily = api.daily() ?: return UiState.Error("Couldn't load today's puzzle. Try again.")
         val p = api.progress(daily.puzzleId, guestId)
             ?: return UiState.Error("Couldn't load your progress. Try again.")
-        render(daily.puzzleId, daily.title, p, "")
+        // The puzzle's own UTC day comes from the server; the device clock is only a
+        // fallback for older servers, so a finish after midnight still records the
+        // puzzle it actually belongs to.
+        render(daily.puzzleId, daily.title, daily.publishedDate ?: clock(), p, "")
     } catch (e: AccessDeniedException) {
         UiState.Error("Beta access expired or was revoked. Use a new invitation to re-enroll.")
     } catch (e: IOException) {
@@ -60,7 +67,7 @@ class GameController(
                         p.state == GameState.OPEN -> "Not quite. Here is another clue."
                         else -> ""
                     }
-                    render(current.puzzleId, current.title, p, notice)
+                    render(current.puzzleId, current.title, current.puzzleDay, p, notice)
                 }
                 else -> current.copy(notice = "Couldn't check that guess. Try again.", submitting = false)
             }
@@ -73,24 +80,29 @@ class GameController(
         }
     }
 
-    private fun render(id: String, title: String, p: Progress, notice: String): UiState {
-        if (p.finished && recorder != null && recorded.add(id)) {
-            try {
+    private fun render(id: String, title: String, day: String, p: Progress, notice: String): UiState {
+        if (p.finished && recorder != null && !recorded.contains(id)) {
+            val saved = try {
                 recorder.invoke(
                     GameResult(
                         puzzleId = id,
-                        day = clock(),
+                        day = day,
                         solved = p.state == GameState.SOLVED,
                         cluesUsed = p.clueNumber,
                         score = p.score,
                     )
                 )
             } catch (_: Exception) {
-                // stats are local and best-effort; a failed record never changes the game state
+                false // stats are local; a failed record never changes the game state
             }
+            // Mark only after a durable save: a failure stays pending and the next render retries.
+            if (saved) recorded.add(id)
         }
-        return if (p.finished) UiState.Finished(id, title, p, finishedMessage(p))
-        else UiState.Playing(id, title, p, notice)
+        if (p.finished) {
+            val statsSaved = recorder == null || recorded.contains(id)
+            return UiState.Finished(id, title, day, p, finishedMessage(p), statsSaved)
+        }
+        return UiState.Playing(id, title, day, p, notice)
     }
 
     companion object {

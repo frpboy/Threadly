@@ -59,9 +59,12 @@ class RealGateTest(unittest.TestCase):
         self.assertIn('reverse --remove tcp:8765',real)
         self.assertIn('len(cases)==4',real);self.assertIn('len(cases)==15',synthetic)
         self.assertIn('len(qa)==8',synthetic)
+        # Per-file pins: each workflow asserts the tree/counts of the branch content it serves.
+        self.assertIn('len(unitcases)==24',real)
+        self.assertIn('ea75d38aacf7deaa3976d8c2205ef790682a5928',real)
+        self.assertIn('len(unitcases)==63',synthetic)
+        self.assertIn('3cb8fed53f003911d40c4663e0c45aaafee00373',synthetic)
         for workflow in (real, synthetic):
-            self.assertIn('len(unitcases)==55',workflow)
-            self.assertIn('ea75d38aacf7deaa3976d8c2205ef790682a5928',workflow)
             self.assertIn('group: threadly-native-qualification-${{ github.ref }}',workflow)
             self.assertIn('cancel-in-progress: false',workflow)
             self.assertNotIn('bd3e62e8df2a88a0f632d8a9a15b19883f79b39b',workflow)

@@ -89,7 +89,7 @@ class LoopbackHttpUiTest {
     }
     @After fun cleanup() { server?.close(); server = null }
     private fun snapshot(state: String, answer: String = "sentinel-answer") = """{"state":"$state","clue_number":2,"clues":[{"order":1,"text":"First clue"},{"order":2,"text":"Second clue"}],"guesses":["wrong"],"total_clues":2,"score_awarded":${if(state == "solved") 80 else 0},"answer":"$answer"}"""
-    private fun daily() = Reply("GET", "/api/daily", 200, """{"puzzle_id":"$puzzle","title":"Synthetic only","total_clues":2}""")
+    private fun daily() = Reply("GET", "/api/daily", 200, """{"puzzle_id":"$puzzle","title":"Synthetic only","total_clues":2,"published_date":"2026-11-15T00:00:00.000Z"}""")
     private fun progress(state: String) = Reply("POST", "/api/progress", 200, snapshot(state))
     private fun startFixture(vararg replies: Reply) {
         check(BuildConfig.API_BASE == "http://127.0.0.1:8765") { "QA origin must be exact device loopback" }
@@ -130,6 +130,7 @@ class LoopbackHttpUiTest {
         // Finished screen extras: spoiler-free share card and local stats section.
         rule.onNodeWithTag("share_result").assertIsDisplayed()
         rule.onNodeWithText("Solved in 2 clues - 80 points", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Threadly 2026-11-15", substring = true).assertIsDisplayed()
         rule.onNodeWithText("Your stats").assertIsDisplayed()
         rule.onNodeWithText("Played 1 · Won 1 (100%) · Streak 1 · Best 1").assertIsDisplayed()
         server!!.verify(); assertEquals(1, server!!.requests.count { it == "/api/guess" }); shot("loopback-solved")

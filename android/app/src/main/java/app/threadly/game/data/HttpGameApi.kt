@@ -60,7 +60,8 @@ class HttpGameApi(private val baseUrl: String, private val device: BetaCredentia
         val j = r.json ?: return null
         if (r.code != 200) return null
         return try {
-            Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5))
+            Daily(j.getString("puzzle_id"), j.optString("title"), j.optInt("total_clues", 5),
+                j.optString("published_date").takeIf { it.length >= 10 && it.substring(0, 10).matches(Regex("""\d{4}-\d{2}-\d{2}""")) }?.substring(0, 10))
         } catch (_: JSONException) { throw IOException("Invalid puzzle response") }
     }
 

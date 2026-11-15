@@ -23,7 +23,7 @@ class GameViewModel(
         "%04d-%02d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
     },
 ) : ViewModel() {
-    private val controller = GameController(api, guestId, recorder = { r: GameResult -> stats?.tryRecord(r) }, clock = today)
+    private val controller = GameController(api, guestId, recorder = stats?.let { store -> { r: GameResult -> store.tryRecord(r) } }, clock = today)
 
     /** Local stats for the finished screen; empty summary when history is unreadable or absent. */
     fun statsSummary(): StatsSummary = stats?.summary(today()) ?: StatsSummary(0, 0, 0, 0, emptyMap())
@@ -32,7 +32,7 @@ class GameViewModel(
     fun shareCard(s: UiState.Finished): String = ShareCard.build(
         GameResult(
             puzzleId = s.puzzleId,
-            day = today(),
+            day = s.puzzleDay,
             solved = s.progress.state == app.threadly.game.data.GameState.SOLVED,
             cluesUsed = s.progress.clueNumber,
             score = s.progress.score,

@@ -45,7 +45,8 @@ data class Progress(
     }
 }
 
-data class Daily(val puzzleId: String, val title: String, val totalClues: Int)
+/** Server-assigned daily puzzle. [publishedDate] is the puzzle's UTC day (yyyy-MM-dd) from published_date, null when the server omits it. */
+data class Daily(val puzzleId: String, val title: String, val totalClues: Int, val publishedDate: String? = null)
 
 /** HTTP status of /api/guess. 200 = scored or wrong, 409 = replay/already solved/exhausted. */
 data class GuessOutcome(val httpCode: Int)

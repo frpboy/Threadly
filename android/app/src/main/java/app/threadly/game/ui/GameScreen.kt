@@ -123,7 +123,7 @@ private fun Finished(s: UiState.Finished, vm: GameViewModel) {
 
     // Spoiler-free share card: day, block pattern and score only, never the answer.
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    var copied by rememberSaveable { mutableStateOf(false) }
+    var copied by rememberSaveable(s.puzzleId) { mutableStateOf(false) }
     Spacer(Modifier.height(16.dp))
     Text(vm.shareCard(s), color = Color(0xFFAAB0C0), fontSize = 15.sp)
     Spacer(Modifier.height(8.dp))
@@ -135,8 +135,13 @@ private fun Finished(s: UiState.Finished, vm: GameViewModel) {
         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("share_result"),
     ) { Text(if (copied) "Copied" else "Copy result to share") }
 
-    // Local on-device stats (PRD V1: no account needed).
-    val summary = remember { vm.statsSummary() }
+    // Local on-device stats (PRD V1: no account needed). Recomputed on composition so a
+    // midnight rollover or a just-saved result never shows a stale snapshot.
+    if (!s.statsSaved) {
+        Spacer(Modifier.height(8.dp))
+        Text("Result not saved to on-device stats yet - it will retry.", color = Color(0xFFAAB0C0), fontSize = 13.sp)
+    }
+    val summary = vm.statsSummary()
     if (summary.played > 0) {
         Spacer(Modifier.height(16.dp))
         Text("Your stats", color = Color.White, fontSize = 18.sp)

@@ -16,7 +16,7 @@ private class FakeApi : GameApi {
     var progressIoAfterGuess = false
     private var guessed = false
     val guessCalls = mutableListOf<String>()
-    override suspend fun daily() = Daily("p1", "Puzzle", 5)
+    override suspend fun daily() = Daily("p1", "Puzzle", 5, "2026-11-14") // server puzzle day: one day behind the injected device clock
     override suspend fun progress(puzzleId: String, guestId: String): Progress? {
         if (failIo || (progressIoAfterGuess && guessed)) throw IOException("down"); return if (progressNull) null else progress
     }
@@ -35,7 +35,8 @@ class GameControllerTest {
     private val c = GameController(api, "guest")
 
     private val recordedResults = mutableListOf<GameResult>()
-    private val rc = GameController(api, "guest", recorder = { recordedResults += it }, clock = { "2026-11-15" })
+    private var saveOk = true
+    private val rc = GameController(api, "guest", recorder = { r -> if (saveOk) { recordedResults += r; true } else false }, clock = { "2026-11-15" })
 
     @Test fun finishedGuessRecordsExactlyOneResult() = runBlocking {
         val cur = rc.load() as UiState.Playing
@@ -43,7 +44,9 @@ class GameControllerTest {
         rc.guess(cur, "batman") as UiState.Finished
         assertEquals(1, recordedResults.size)
         val res = recordedResults[0]
-        assertEquals("p1", res.puzzleId); assertEquals("2026-11-15", res.day)
+        assertEquals("p1", res.puzzleId)
+        // midnight/wrong-clock: the recorded day is the server puzzle day, not the device clock (2026-11-15)
+        assertEquals("2026-11-14", res.day)
         assertTrue(res.solved); assertEquals(1, res.cluesUsed); assertEquals(100, res.score)
     }
     @Test fun exhaustedGameRecordsFailure() = runBlocking {
@@ -70,6 +73,24 @@ class GameControllerTest {
         api.progress = solved(1, 100)
         val s = bad.guess(cur, "batman") as UiState.Finished
         assertTrue(s.notice.contains("+100"))
+        assertFalse(s.statsSaved)
+    }
+    @Test fun failedSaveStaysPendingAndRetriesOnNextRender() = runBlocking {
+        saveOk = false
+        val cur = rc.load() as UiState.Playing
+        api.progress = solved(1, 100)
+        val failed = rc.guess(cur, "batman") as UiState.Finished
+        assertFalse(failed.statsSaved); assertTrue(recordedResults.isEmpty())
+        // no loop, no background retry: the next render (here a reload) retries once the store works
+        saveOk = true
+        val retried = rc.load() as UiState.Finished
+        assertTrue(retried.statsSaved)
+        assertEquals(1, recordedResults.size); assertEquals("2026-11-14", recordedResults[0].day)
+    }
+    @Test fun finishedWithoutStoreReportsSaved() = runBlocking {
+        api.progress = solved(1, 100)
+        val s = c.load() as UiState.Finished   // c has no recorder: nothing to save
+        assertTrue(s.statsSaved)
     }
 
     @Test fun loadResumesOpenGameFromServer() = runBlocking {
