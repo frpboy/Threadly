@@ -139,7 +139,11 @@ private fun Finished(s: UiState.Finished, vm: GameViewModel) {
     // midnight rollover or a just-saved result never shows a stale snapshot.
     if (!s.statsSaved) {
         Spacer(Modifier.height(8.dp))
-        Text("Result not saved to on-device stats yet - it will retry.", color = Color(0xFFAAB0C0), fontSize = 13.sp)
+        Text("Result not saved to on-device stats yet - it will retry when this screen reloads.", color = Color(0xFFAAB0C0), fontSize = 13.sp)
+    }
+    if (s.puzzleDay == null) {
+        Spacer(Modifier.height(8.dp))
+        Text("Puzzle date unavailable from the server - this result is not counted in on-device stats.", color = Color(0xFFAAB0C0), fontSize = 13.sp)
     }
     val summary = vm.statsSummary()
     if (summary.played > 0) {

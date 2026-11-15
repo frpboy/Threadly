@@ -5,7 +5,7 @@ package app.threadly.game.data
  * score only - never the answer, clues or guesses.
  */
 object ShareCard {
-    fun build(result: GameResult, totalClues: Int = 5): String {
+    fun build(result: GameResult, totalClues: Int = 5, day: String? = result.day): String {
         val blocks = if (result.solved) {
             "🟩".repeat(result.cluesUsed.coerceIn(1, totalClues)) +
                 "⬜".repeat((totalClues - result.cluesUsed).coerceAtLeast(0))
@@ -18,6 +18,7 @@ object ShareCard {
         } else {
             "Out of clues"
         }
-        return "Threadly ${result.day}\n$blocks\n$detail"
+        val head = if (day != null) "Threadly $day" else "Threadly" // no fabricated date when the server day is unknown
+        return "$head\n$blocks\n$detail"
     }
 }

@@ -15,8 +15,9 @@ private class FakeApi : GameApi {
     var progressNull = false
     var progressIoAfterGuess = false
     private var guessed = false
+    var day: String? = "2026-11-14" // server puzzle day; null simulates a server that omits published_date
     val guessCalls = mutableListOf<String>()
-    override suspend fun daily() = Daily("p1", "Puzzle", 5, "2026-11-14") // server puzzle day: one day behind the injected device clock
+    override suspend fun daily() = Daily("p1", "Puzzle", 5, day)
     override suspend fun progress(puzzleId: String, guestId: String): Progress? {
         if (failIo || (progressIoAfterGuess && guessed)) throw IOException("down"); return if (progressNull) null else progress
     }
@@ -36,7 +37,7 @@ class GameControllerTest {
 
     private val recordedResults = mutableListOf<GameResult>()
     private var saveOk = true
-    private val rc = GameController(api, "guest", recorder = { r -> if (saveOk) { recordedResults += r; true } else false }, clock = { "2026-11-15" })
+    private val rc = GameController(api, "guest", recorder = { r -> if (saveOk) { recordedResults += r; true } else false })
 
     @Test fun finishedGuessRecordsExactlyOneResult() = runBlocking {
         val cur = rc.load() as UiState.Playing
@@ -45,7 +46,7 @@ class GameControllerTest {
         assertEquals(1, recordedResults.size)
         val res = recordedResults[0]
         assertEquals("p1", res.puzzleId)
-        // midnight/wrong-clock: the recorded day is the server puzzle day, not the device clock (2026-11-15)
+        // midnight/wrong-clock: the recorded day is the server puzzle day; the device clock is never consulted
         assertEquals("2026-11-14", res.day)
         assertTrue(res.solved); assertEquals(1, res.cluesUsed); assertEquals(100, res.score)
     }
@@ -68,7 +69,7 @@ class GameControllerTest {
         assertTrue(recordedResults.isEmpty())
     }
     @Test fun throwingRecorderNeverBreaksGameplay() = runBlocking {
-        val bad = GameController(api, "guest", recorder = { throw RuntimeException("disk full") }, clock = { "2026-11-15" })
+        val bad = GameController(api, "guest", recorder = { throw RuntimeException("disk full") })
         val cur = bad.load() as UiState.Playing
         api.progress = solved(1, 100)
         val s = bad.guess(cur, "batman") as UiState.Finished
@@ -81,7 +82,7 @@ class GameControllerTest {
         api.progress = solved(1, 100)
         val failed = rc.guess(cur, "batman") as UiState.Finished
         assertFalse(failed.statsSaved); assertTrue(recordedResults.isEmpty())
-        // no loop, no background retry: the next render (here a reload) retries once the store works
+        // no loop, no background retry: the next load retries once the store works
         saveOk = true
         val retried = rc.load() as UiState.Finished
         assertTrue(retried.statsSaved)
@@ -172,6 +173,30 @@ class GameControllerTest {
         val s = c.guess(after, "batman") as UiState.Finished
         assertTrue(s.notice.contains("+100"))                    // shown once, from server state
         assertEquals(2, api.guessCalls.size)
+    }
+    @Test fun unknownServerDayIsNeverFabricatedPersistedOrShared() = runBlocking {
+        api.day = null
+        api.progress = solved(1, 100)
+        val s = rc.load() as UiState.Finished
+        assertNull(s.puzzleDay)
+        assertTrue(s.statsSaved)              // nothing to save: undated results are not persisted
+        assertTrue(recordedResults.isEmpty()) // no fabricated day reaches the store
+        val card = ShareCard.build(
+            GameResult(s.puzzleId, day = "", solved = true, cluesUsed = 1, score = 100),
+            totalClues = 5,
+            day = s.puzzleDay,
+        )
+        assertEquals("Threadly", card.lines()[0]) // no date invented for the share card
+    }
+    @Test fun failedSaveRetriesAtMostOncePerCall() = runBlocking {
+        var attempts = 0
+        val counting = GameController(api, "guest", recorder = { attempts++; false })
+        api.progress = solved(1, 100)
+        val s1 = counting.load() as UiState.Finished
+        assertFalse(s1.statsSaved)
+        assertEquals(1, attempts)  // one attempt per call, no recomposition loop
+        counting.load()
+        assertEquals(2, attempts)  // a later load retries exactly once more
     }
     @Test fun refreshReturningNullKeepsOldClues() = runBlocking {
         val cur = c.load() as UiState.Playing

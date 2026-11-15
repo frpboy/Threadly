@@ -23,7 +23,7 @@ class GameViewModel(
         "%04d-%02d-%02d".format(c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH))
     },
 ) : ViewModel() {
-    private val controller = GameController(api, guestId, recorder = stats?.let { store -> { r: GameResult -> store.tryRecord(r) } }, clock = today)
+    private val controller = GameController(api, guestId, recorder = stats?.let { store -> { r: GameResult -> store.tryRecord(r) } })
 
     /** Local stats for the finished screen; empty summary when history is unreadable or absent. */
     fun statsSummary(): StatsSummary = stats?.summary(today()) ?: StatsSummary(0, 0, 0, 0, emptyMap())
@@ -32,12 +32,13 @@ class GameViewModel(
     fun shareCard(s: UiState.Finished): String = ShareCard.build(
         GameResult(
             puzzleId = s.puzzleId,
-            day = s.puzzleDay,
+            day = s.puzzleDay ?: "",
             solved = s.progress.state == app.threadly.game.data.GameState.SOLVED,
             cluesUsed = s.progress.clueNumber,
             score = s.progress.score,
         ),
         totalClues = s.progress.totalClues,
+        day = s.puzzleDay, // null when the server omitted the day: the card shows no date
     )
     private val _state = MutableStateFlow<UiState>(UiState.Loading)
     val state: StateFlow<UiState> = _state
