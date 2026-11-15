@@ -1,0 +1,95 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as Sentry from '@sentry/nextjs';
+import { applyWebErrorBoundary, GENERIC_ERROR_MESSAGE } from './sentryGenericErrorBoundary';
+import { captureHandledApiError } from './apiErrorCapture';
+
+const SECRET_SQL = "duplicate key value violates unique constraint users_pkey DETAIL: Key (email)=(resident@example.com)";
+const SECRET_BEARER = 'Bearer abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQ1234567890_-';
+
+// Decode an envelope array [headers, [[itemHeaders, payload], ...]] into plain text + parsed items.
+function decodeEnvelope(envelope) {
+  const [, items] = envelope;
+  return items.map(([h, p]) => [
+    h,
+    typeof p === 'string' ? p : (p instanceof Uint8Array ? new TextDecoder().decode(p) : JSON.stringify(p)),
+  ]);
+}
+
+function captureTransport(sent) {
+  // The SDK invokes options.transport as a factory.
+  return function CaptureTransport() {
+    return {
+      send: async (envelope) => { sent.push(envelope); return { statusCode: 'success' }; },
+      flush: async () => true,
+    };
+  };
+}
+
+async function freshClient(sent) {
+  Sentry.init({
+    dsn: 'http://public@127.0.0.1:1/1',
+    transport: captureTransport(sent),
+    autoSessionTracking: false,
+    tracesSampleRate: 0,
+    enableLogs: false,
+    beforeSend(event, hint) {
+      return applyWebErrorBoundary(event, hint);
+    },
+  });
+  const scope = Sentry.getCurrentScope();
+  // Adversarial scope: identity, secrets in extras/breadcrumbs, a settable
+  // route tag, and an attachment - none of it may reach the wire.
+  scope.setUser({ id: 'u1', email: 'resident@example.com', ip_address: '1.2.3.4' });
+  scope.setExtra('sql', SECRET_SQL);
+  scope.setTag('api_route', 'evil-' + SECRET_BEARER);
+  scope.addBreadcrumb({ category: 'http', data: { url: 'https://threadly/api/x?code=' + SECRET_BEARER, headers: { authorization: SECRET_BEARER } } });
+  if (typeof scope.addAttachment === 'function') {
+    scope.addAttachment({ filename: 'debug.txt', data: SECRET_SQL, contentType: 'text/plain' });
+  }
+}
+
+function assertNoLeak(sent) {
+  const whole = sent.map((e) => JSON.stringify(decodeEnvelope(e))).join('\n');
+  for (const marker of [SECRET_SQL, SECRET_BEARER, 'resident@example.com', '1.2.3.4', 'duplicate key', 'evil-']) {
+    assert.ok(!whole.includes(marker), 'leaked into envelope: ' + marker);
+  }
+  for (const [h] of sent.flatMap((e) => decodeEnvelope(e))) {
+    assert.notEqual(h.type, 'attachment', 'attachment item survived');
+  }
+}
+
+test('final wire: a busy transport drops within the flush deadline, no unbounded queue', async () => {
+  let sendCalls = 0;
+  // Mirror real-transport flush semantics: flush waits for pending sends to
+  // drain or the deadline to pass, whichever first.
+  function HangingTransport() {
+    let pending = 0;
+    return {
+      send: () => { sendCalls++; pending++; return new Promise(() => {}); }, // never resolves
+      flush: async (timeout) => {
+        const start = Date.now();
+        while (pending > 0 && Date.now() - start < timeout) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        return pending === 0;
+      },
+    };
+  }
+  Sentry.init({
+    dsn: 'http://public@127.0.0.1:1/1',
+    transport: HangingTransport,
+    autoSessionTracking: false,
+    tracesSampleRate: 0,
+    enableLogs: false,
+    beforeSend(event, hint) { return applyWebErrorBoundary(event, hint); },
+  });
+  Sentry.captureException(new Error(SECRET_SQL));
+  const started = Date.now();
+  const flushed = await Sentry.flush(1500);
+  const elapsed = Date.now() - started;
+  await Sentry.close(1500);
+  assert.equal(flushed, false, 'flush should report not-flushed when the transport hangs');
+  assert.ok(elapsed < 5000, 'flush did not honor its deadline: ' + elapsed + 'ms');
+  assert.ok(sendCalls <= 2, 'event was re-queued/retried without bound: ' + sendCalls + ' sends');
+});
