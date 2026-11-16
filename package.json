@@ -4,11 +4,6 @@
   "workspaces": [
     "apps/web"
   ],
-  "allowScripts": {
-    "@prisma/engines@5.22.0": true,
-    "@prisma/client@5.22.0": true,
-    "prisma@5.22.0": true
-  },
   "scripts": {
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspace=web",
