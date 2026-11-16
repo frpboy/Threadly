@@ -4,6 +4,11 @@
   "workspaces": [
     "apps/web"
   ],
+  "allowScripts": {
+    "@prisma/engines": true,
+    "@prisma/client@5.22.0": true,
+    "prisma": true
+  },
   "scripts": {
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspace=web",
@@ -11,7 +16,7 @@
     "lint": "npm run lint --workspace=web"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.0"
+    "@playwright/test": "^1.65.0"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.57.0"
