@@ -2,11 +2,6 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
-  "allowScripts": {
-    "@prisma/engines@5.22.0": true,
-    "@prisma/client@5.22.0": true,
-    "prisma@5.22.0": true
-  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build --webpack",
