@@ -16,7 +16,7 @@
     "answer": "honey",
     "difficulty": 1,
     "clues": [
-      "I am a food that essentially never spoils",
+      "Humans have enjoyed me as a sweetener for thousands of years",
       "I am made by insects that live in a colony with a queen",
       "I am stored in hexagonal wax cells",
       "Winnie the Pooh is always trying to get me",
@@ -65,7 +65,7 @@
     "difficulty": 1,
     "clues": [
       "People have collected knowledge in me for thousands of years",
-      "The ancient one at Alexandria was the wonder of its age",
+      "The largest of me in the world is in Washington, D.C.",
       "The Dewey Decimal System is used to organize me",
       "You can borrow books from me for free",
       "A quiet building full of books"
@@ -136,7 +136,7 @@
     "answer": "rainbow",
     "difficulty": 1,
     "clues": [
-      "I am sunlight split into many colors",
+      "I am a sight you can see but never reach",
       "I am caused by light bending inside water droplets",
       "A double one of me has its colors reversed on the outer band",
       "To see me you need the sun behind you and rain ahead",
@@ -160,10 +160,10 @@
     "answer": "bicycle",
     "difficulty": 1,
     "clues": [
-      "I am one of the most efficient machines ever made",
+      "I am one of the most efficient ways to travel",
       "An early version of me, the penny-farthing, had one giant wheel",
       "The Tour de France is my most famous race",
-      "I am powered entirely by my rider",
+      "Most of me are powered entirely by my rider's legs",
       "Two wheels, pedals, and a chain"
     ]
   },
@@ -269,7 +269,7 @@
     "difficulty": 1,
     "clues": [
       "I am an animal that gets around by hopping",
-      "My baby is called a joey",
+      "My relatives include wallabies and tree kangaroos",
       "I balance on my strong tail and can box with my forearms",
       "I carry my baby in a pouch",
       "A hopping marsupial from Australia"
@@ -283,7 +283,7 @@
       "People have used me to see themselves for thousands of years",
       "Telescopes and lasers use precision versions of me",
       "I am usually glass with a thin metal backing",
-      "I show images reversed left to right",
+      "Text held up to me appears backward",
       "You look into me to see yourself"
     ]
   },
