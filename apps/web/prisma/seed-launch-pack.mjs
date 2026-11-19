@@ -54,7 +54,7 @@ const dates = pack.map((_, i) => new Date(start.getTime() + i * 86400000));
 
 const db = new PrismaClient();
 try {
-  const betaMarkers = await db.$queryRaw`SELECT to_regclass('public.threadly_beta_target') AS t`;
+  const betaMarkers = await db.$queryRaw`SELECT to_regclass('public.threadly_beta_target')::text AS t`;
   if (betaMarkers[0].t) throw new Error('beta marker table present: refusing to seed a beta database');
 
   const existing = await db.puzzle.findMany({ where: { publishedDate: { in: dates } }, select: { publishedDate: true } });
