@@ -2,6 +2,7 @@ import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { captureHandledApiError } from "@/services/apiErrorCapture";
+import { publicationDayReached } from "@/services/puzzleService";
 
 export async function GET(
   req: NextRequest,
@@ -21,7 +22,7 @@ export async function GET(
       }
     });
 
-    if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
+    if (!puzzle || puzzle.status !== "published" || !publicationDayReached(puzzle, new Date()) || !validPuzzleContent(puzzle)) {
       return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
     }
 

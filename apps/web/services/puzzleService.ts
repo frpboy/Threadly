@@ -1,13 +1,34 @@
 // Puzzle Service for Threadly
 import { db } from "@/lib/db";
 
-export async function getDailyPuzzle(today: Date) {
-  today.setUTCHours(0, 0, 0, 0);
+/** Start of the UTC day containing `now`. */
+function utcDayStart(now: Date): Date {
+  const day = new Date(now);
+  day.setUTCHours(0, 0, 0, 0);
+  return day;
+}
 
-  // Find puzzle published for today
-  let puzzle = await db.puzzle.findFirst({
+/**
+ * A published puzzle becomes serveable when its UTC publication day begins.
+ * Future-dated puzzles (scheduled ahead) must never be served or guessed on,
+ * and a null publication date means the puzzle is not scheduled at all.
+ */
+export function publicationDayReached(puzzle: { publishedDate: Date | null }, now: Date): boolean {
+  return puzzle.publishedDate !== null && puzzle.publishedDate.getTime() <= utcDayStart(now).getTime();
+}
+
+/**
+ * The daily puzzle is exactly the puzzle published for this UTC day.
+ * Reads stay reads: a GET never creates fallback content, and no past or
+ * future puzzle is substituted when nothing is scheduled for today.
+ */
+export async function getDailyPuzzle(today: Date) {
+  const day = utcDayStart(today);
+
+  // Find the puzzle published for today, and only today.
+  return await db.puzzle.findFirst({
     where: {
-      publishedDate: today,
+      publishedDate: day,
       status: "published"
     },
     include: {
@@ -18,56 +39,6 @@ export async function getDailyPuzzle(today: Date) {
       }
     }
   });
-
-  // Fallback: If no puzzle is scheduled for today, fetch the latest published puzzle
-  if (!puzzle) {
-    puzzle = await db.puzzle.findFirst({
-      where: {
-        status: "published"
-      },
-      orderBy: {
-        createdAt: "desc"
-      },
-      include: {
-        clues: {
-          orderBy: {
-            clueOrder: "asc"
-          }
-        }
-      }
-    });
-  }
-
-  // Fallback 2: If database is completely empty, seed a default puzzle
-  if (!puzzle && process.env.THREADLY_NATIVE_BETA === undefined) {
-    puzzle = await db.puzzle.create({
-      data: {
-        title: "Popular Tech stack connection",
-        answer: "programming languages",
-        difficulty: 1,
-        publishedDate: today,
-        status: "published",
-        clues: {
-          create: [
-            { clueOrder: 1, clueText: "Python" },
-            { clueOrder: 2, clueText: "JavaScript" },
-            { clueOrder: 3, clueText: "Rust" },
-            { clueOrder: 4, clueText: "Go" },
-            { clueOrder: 5, clueText: "Swift" }
-          ]
-        }
-      },
-      include: {
-        clues: {
-          orderBy: {
-            clueOrder: "asc"
-          }
-        }
-      }
-    });
-  }
-
-  return puzzle;
 }
 
 export async function getPuzzleById(id: string) {

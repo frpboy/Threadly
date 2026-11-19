@@ -6,7 +6,33 @@ import ts from "typescript";
 import * as validation from "../requestValidation.ts";
 import { validPuzzleContent } from "../puzzleContract.ts";
 import { buildProgress } from "../progressService.ts";
+import { boundedJson } from "../nativeBeta/body.ts";
 const require = createRequire(import.meta.url);
+
+const TODAY = new Date(); TODAY.setUTCHours(0, 0, 0, 0);
+const TOMORROW = new Date(TODAY.getTime() + 86400000);
+const YESTERDAY = new Date(TODAY.getTime() - 86400000);
+const fiveClues = () => Array.from({ length: 5 }, (_, i) => ({ clueOrder: i + 1, clueText: "clue" + (i + 1) }));
+
+/** Recording fake for the handled-error reporter: route catches must report through it. */
+function apiErrorCapture(captured: unknown[][]) {
+  return { captureHandledApiError: (...args: unknown[]) => { captured.push(args); return "captured-event"; } };
+}
+/** Beta gate off: any native-beta work is forbidden in these tests. */
+const betaDisabled = {
+  "@/services/nativeBeta/access": {
+    betaEnabled: () => false,
+    nativePrincipal: async () => { throw new Error("native principal forbidden while beta disabled"); },
+  },
+};
+const betaGuessDisabled = {
+  "@/services/nativeBeta/guessRequest": {
+    betaTransaction: () => { throw new Error("beta transaction forbidden while beta disabled"); },
+    validRequestId: () => false,
+    RequestConflict: class RequestConflict extends Error {},
+  },
+};
+
 /** Execute the actual route source, transpiled without rewriting its logic; external services are fakes. */
 function route(name: string, mocks: Record<string, unknown>) {
   const source = readFileSync(new URL(`../../app/api/${name}/route.ts`, import.meta.url), "utf8");
@@ -14,16 +40,37 @@ function route(name: string, mocks: Record<string, unknown>) {
   const mod = { exports: {} as any };
   new Function("require", "module", "exports", js)((id: string) => {
     if (id === "@/services/puzzleContract") return { validPuzzleContent };
+    if (id === "@/services/nativeBeta/body") return { boundedJson }; // the REAL bounded reader, never faked
     if (id in mocks) return mocks[id];
     if (id === "next/server") return require(id);
     throw new Error(`Unexpected route dependency: ${id}`);
   }, mod, mod.exports);
   return mod.exports;
 }
-function guessRoute(published = true) {
+/** Execute an actual service module the same way, for query-shape and date-guard assertions. */
+function service(name: string, mocks: Record<string, unknown>) {
+  const source = readFileSync(new URL(`../${name}.ts`, import.meta.url), "utf8");
+  const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const mod = { exports: {} as any };
+  new Function("require", "module", "exports", js)((id: string) => {
+    if (id in mocks) return mocks[id];
+    throw new Error(`Unexpected service dependency: ${id}`);
+  }, mod, mod.exports);
+  return mod.exports;
+}
+// The REAL publication-date guard from the real service module (db handle inert here).
+const { publicationDayReached } = service("puzzleService", { "@/lib/db": { db: {} } }) as any;
+const realPuzzleService = { publicationDayReached };
+
+function guessRoute(published = true, publishedDate: Date = TODAY) {
   const calls = { puzzle: 0, matcher: 0, submit: 0 };
+  const captured: unknown[][] = [];
   const post = route("guess", {
-    "@/lib/db": { db: { puzzle: { findUnique: async () => { calls.puzzle++; return { id: "p", answer: "answer", status: published ? "published" : "draft", clues: Array.from({length:5},(_,i)=>({clueOrder:i+1,clueText:"clue"})) }; } } } },
+    ...betaDisabled,
+    ...betaGuessDisabled,
+    "@/services/apiErrorCapture": apiErrorCapture(captured),
+    "@/services/puzzleService": realPuzzleService,
+    "@/lib/db": { db: { puzzle: { findUnique: async () => { calls.puzzle++; return { id: "p", answer: "answer", status: published ? "published" : "draft", publishedDate, clues: fiveClues() }; } } } },
     "@/auth": { auth: async () => null },
     "@/services/answerService": { checkAnswer: () => { calls.matcher++; return { isCorrect: true, similarity: 1 }; } },
     "@/services/scoringService": { calculateScore: () => 100 },
@@ -33,7 +80,7 @@ function guessRoute(published = true) {
     "@/services/prismaAttemptStore": { runInPrismaTransaction: () => { throw new Error("not expected"); } },
     "@/services/requestValidation": validation,
   }).POST;
-  return { calls, post, send: (body: unknown) => post(new Request("http://localhost/api/guess", { method: "POST", body: JSON.stringify(body) })) };
+  return { calls, captured, post, send: (body: unknown) => post(new Request("http://localhost/api/guess", { method: "POST", body: JSON.stringify(body) })) };
 }
 test("actual guess route rejects invalid input before database or edit-distance work", async () => {
   const f = guessRoute();
@@ -47,6 +94,11 @@ test("actual guess route rejects an unpublished puzzle without matching or award
   assert.equal((await f.send({ puzzle_id: "p", guess: "answer", guest_id: "guest123" })).status, 404);
   assert.deepEqual(f.calls, { puzzle: 1, matcher: 0, submit: 0 });
 });
+test("actual guess route refuses a future-dated published puzzle without matching or awarding", async () => {
+  const f = guessRoute(true, TOMORROW);
+  assert.equal((await f.send({ puzzle_id: "p", guess: "answer", guest_id: "guest123" })).status, 404);
+  assert.deepEqual(f.calls, { puzzle: 1, matcher: 0, submit: 0 });
+});
 test("actual guess route still accepts a valid published puzzle and does not accept client score", async () => {
   const f = guessRoute();
   const r = await f.send({ puzzle_id: "p", guess: "answer", guest_id: "guest123", clues_revealed: 0, score: 999999 });
@@ -54,12 +106,12 @@ test("actual guess route still accepts a valid published puzzle and does not acc
   assert.deepEqual(f.calls, { puzzle: 1, matcher: 1, submit: 1 });
 });
 test("actual leaderboard POST refuses arbitrary points and cannot touch database", async () => {
-  const f = route("leaderboard", { "@/lib/db": { db: new Proxy({}, { get() { throw new Error("database touched"); } }) } });
+  const f = route("leaderboard", { "@/services/apiErrorCapture": apiErrorCapture([]), "@/lib/db": { db: new Proxy({}, { get() { throw new Error("database touched"); } }) } });
   const r = await f.POST(new Request("http://localhost/api/leaderboard", { method: "POST", body: JSON.stringify({ score: 1000000, guest_id: "guest123" }) }));
   assert.equal(r.status, 405); assert.equal(r.headers.get("cache-control"), "private, no-store"); assert.equal(r.headers.get("Allow"), "GET");
 });
 test("leaderboard GET with no active season does not create one", async () => {
-  const f = route("leaderboard", { "@/lib/db": { db: { leaderboardSeason: { findFirst: async () => null, create: () => { throw new Error("create forbidden"); } } } } });
+  const f = route("leaderboard", { "@/services/apiErrorCapture": apiErrorCapture([]), "@/lib/db": { db: { leaderboardSeason: { findFirst: async () => null, create: () => { throw new Error("create forbidden"); } } } } });
   const r = await f.GET(); assert.equal(r.status, 200); assert.equal(r.headers.get("cache-control"), "private, no-store"); assert.deepEqual((await r.json()).entries, []);
 });
 test("actual guess route returns private400 for malformed JSON and non-object JSON", async () => {
@@ -76,7 +128,10 @@ test("malformed published puzzle cannot match or award a nonexistent clue slot",
  for(const orders of [[1,2],[1,2,3,4,4],[1,2,3,4,6]]) {
   let touched=0;
   const post=route("guess",{
-   "@/lib/db":{db:{puzzle:{findUnique:async()=>({id:"p",status:"published",answer:"answer",clues:orders.map(clueOrder=>({clueOrder,clueText:"clue"}))})}}},
+   ...betaDisabled,...betaGuessDisabled,
+   "@/services/apiErrorCapture":apiErrorCapture([]),
+   "@/services/puzzleService":realPuzzleService,
+   "@/lib/db":{db:{puzzle:{findUnique:async()=>({id:"p",status:"published",answer:"answer",publishedDate:TODAY,clues:orders.map(clueOrder=>({clueOrder,clueText:"clue"}))})}}},
    "@/auth":{auth:async()=>null},"@/services/answerService":{checkAnswer:()=>{touched++;throw Error("matcher forbidden");}},
    "@/services/scoringService":{},"@/services/difficultyService":{},"@/services/attemptService":{MAX_CLUES:5},
    "@/services/guessTransaction":{submitGuess:()=>{touched++;throw Error("award forbidden");}},
@@ -90,6 +145,7 @@ test("publish refuses malformed content before update and permits canonical UTC 
  for(const valid of [false,true]) {
   let updates=0;
   const f=route("admin/publish",{
+   "@/services/apiErrorCapture":apiErrorCapture([]),
    "@/lib/adminAuth":{verifyAdminRequest:()=>true},
    "@/lib/db":{db:{$transaction:async(fn:any)=>fn({puzzle:{findUnique:async()=>({answer:"answer",clues:Array.from({length:valid?5:2},(_,i)=>({clueOrder:i+1,clueText:"clue"}))}),update:async({data}:any)=>{updates++;assert.equal(data.publishedDate.getUTCHours(),0);return data;}}})}},
   });
@@ -98,9 +154,9 @@ test("publish refuses malformed content before update and permits canonical UTC 
  }
 });
 test("all public read boundaries reject malformed published content without history queries",async()=>{
- const bad={id:"p",status:"published",answer:"answer",clues:[{clueOrder:1,clueText:"one"},{clueOrder:2,clueText:"two"}]};
+ const bad={id:"p",status:"published",answer:"answer",publishedDate:YESTERDAY,clues:[{clueOrder:1,clueText:"one"},{clueOrder:2,clueText:"two"}]};
  const never=()=>{throw Error("history/award query forbidden");};
- const mocks={"@/lib/db":{db:{puzzle:{findUnique:async()=>bad,findMany:async()=>[bad]},guess:{findFirst:never},clue:{findFirst:never}}},"@/auth":{auth:async()=>null},"@/services/scoringService":{},"@/services/progressService.ts":{buildProgress:never},"@/services/prismaAttemptStore":{prismaHistory:never},"@/services/requestValidation":validation,"@/services/puzzleService":{getDailyPuzzle:async()=>bad}};
+ const mocks={...betaDisabled,"@/services/apiErrorCapture":apiErrorCapture([]),"@/lib/db":{db:{puzzle:{findUnique:async()=>bad,findMany:async()=>[bad]},guess:{findFirst:never},clue:{findFirst:never}}},"@/auth":{auth:async()=>null},"@/services/scoringService":{},"@/services/progressService.ts":{buildProgress:never},"@/services/prismaAttemptStore":{prismaHistory:never},"@/services/requestValidation":validation,"@/services/puzzleService":{getDailyPuzzle:async()=>bad,publicationDayReached}};
  const request=new Request("http://localhost/api/progress",{method:"POST",body:JSON.stringify({puzzle_id:"p",guest_id:"guest123",requested_clue_order:1})});
  assert.equal((await route("progress",mocks).POST(request.clone())).status,404);
  assert.equal((await route("clue",mocks).POST(request.clone())).status,404);
@@ -109,10 +165,46 @@ test("all public read boundaries reject malformed published content without hist
  assert.deepEqual((await (await route("archive",mocks).GET()).json()).puzzles,[]);
 });
 
+test("daily route returns 404, reported nowhere, when no puzzle is published today",async()=>{
+ const captured:unknown[][]=[];
+ const f=route("daily",{...betaDisabled,"@/services/apiErrorCapture":apiErrorCapture(captured),"@/services/puzzleService":{getDailyPuzzle:async()=>null,publicationDayReached}});
+ const r=await f.GET();
+ assert.equal(r.status,404);assert.equal(captured.length,0);
+});
+test("daily route never serves a future-dated puzzle, even if the service returned one",async()=>{
+ const future={id:"p",status:"published",answer:"answer",publishedDate:TOMORROW,clues:fiveClues()};
+ const f=route("daily",{...betaDisabled,"@/services/apiErrorCapture":apiErrorCapture([]),"@/services/puzzleService":{getDailyPuzzle:async()=>future,publicationDayReached}});
+ assert.equal((await f.GET()).status,404);
+});
+test("archive by id refuses a future-dated published puzzle",async()=>{
+ const future={id:"p",status:"published",answer:"answer",publishedDate:TOMORROW,clues:fiveClues()};
+ const f=route("archive/[id]",{"@/services/apiErrorCapture":apiErrorCapture([]),"@/services/puzzleService":realPuzzleService,"@/lib/db":{db:{puzzle:{findUnique:async()=>future}}}});
+ const r=await f.GET(new Request("http://localhost/api/archive/p"),{params:Promise.resolve({id:"p"})});
+ assert.equal(r.status,404);
+});
+test("daily service queries exactly today's puzzle in one read and never creates fallback content",async()=>{
+ const queries:any[]=[];
+ const svc:any=service("puzzleService",{"@/lib/db":{db:{puzzle:{
+  findFirst:async(args:any)=>{queries.push(args);return null;},
+  create:async()=>{throw new Error("a GET must never create content");},
+  findMany:async()=>{throw new Error("no fallback list query allowed");},
+ }}}});
+ assert.equal(await svc.getDailyPuzzle(new Date("2026-11-20T17:42:11Z")),null);
+ assert.equal(queries.length,1);
+ assert.equal(queries[0].where.status,"published");
+ assert.equal(queries[0].where.publishedDate.getTime(),Date.UTC(2026,10,20));
+ const now=new Date("2026-11-20T12:00:00Z");
+ assert.equal(svc.publicationDayReached({publishedDate:new Date(Date.UTC(2026,10,21))},now),false);
+ assert.equal(svc.publicationDayReached({publishedDate:new Date(Date.UTC(2026,10,20))},now),true);
+ assert.equal(svc.publicationDayReached({publishedDate:new Date(Date.UTC(2026,10,1))},now),true);
+ assert.equal(svc.publicationDayReached({publishedDate:null},now),false);
+});
+
 function clueRoute(history: any[] = [], userId: string | null = null) {
  const calls = { puzzle: 0, history: 0, key: "" };
  const f = route("clue", {
-  "@/lib/db": { db: { puzzle: { findUnique: async () => { calls.puzzle++; return { id: "p", status: "published", answer: "answer", clues: Array.from({length:5},(_,i)=>({clueOrder:i+1,clueText:`clue${i+1}`})) }; } } } },
+  "@/services/apiErrorCapture": apiErrorCapture([]),
+  "@/lib/db": { db: { puzzle: { findUnique: async () => { calls.puzzle++; return { id: "p", status: "published", answer: "answer", publishedDate: TODAY, clues: fiveClues() }; } } } },
   "@/auth": { auth: async () => userId ? {user:{id:userId}} : null },
   "@/services/requestValidation": validation,
   "@/services/progressService.ts": { buildProgress },
@@ -153,9 +245,11 @@ test("clue authenticated player identity takes precedence over supplied guest id
 
 test("API failure logs do not disclose exception payloads or private player history",async()=>{
  const marker="synthetic-private-password-and-guest-history";
- const calls: unknown[][]=[];const original=console.error;console.error=(...args:unknown[])=>{calls.push(args);};
+ const calls: unknown[][]=[];const captured: unknown[][]=[];const original=console.error;console.error=(...args:unknown[])=>{calls.push(args);};
  try {
   const f=route("progress", {
+   ...betaDisabled,
+   "@/services/apiErrorCapture": apiErrorCapture(captured),
    "@/lib/db": {db:{puzzle:{findUnique:async()=>{throw new Error(marker);}}}},
    "@/auth": {auth:async()=>null},
    "@/services/scoringService": {calculateScore:()=>100},
@@ -166,6 +260,7 @@ test("API failure logs do not disclose exception payloads or private player hist
   const r=await f.POST(new Request("http://localhost/api/progress",{method:"POST",body:JSON.stringify({puzzle_id:"p",guest_id:"guest123"})}));
   assert.equal(r.status,500);assert.equal(r.headers.get("cache-control"),"private, no-store");
   assert.deepEqual(calls,[["Failed to load progress"]]);assert(!JSON.stringify(calls).includes(marker));assert(!(await r.text()).includes(marker));
+  assert.equal(captured.length,1);assert.equal(captured[0][0],"progress");
  } finally {console.error=original;}
 });
 test("API route console errors use constant operation text, not exception objects/messages",()=>{

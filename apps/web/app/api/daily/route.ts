@@ -1,7 +1,7 @@
 import { betaEnabled, nativePrincipal } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
-import { getDailyPuzzle } from "@/services/puzzleService";
+import { getDailyPuzzle, publicationDayReached } from "@/services/puzzleService";
 import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 export async function GET(request: Request) {
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const today = new Date();
     const puzzle = await getDailyPuzzle(today);
 
-    if (!puzzle || !validPuzzleContent(puzzle)) return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
+    if (!puzzle || !publicationDayReached(puzzle, today) || !validPuzzleContent(puzzle)) return NextResponse.json({ error: "Puzzle not found" }, { status: 404 });
 
     // Return puzzle details (spoiler-free: do not return the answer, and only return Clue 1)
     const firstClue = puzzle.clues.find(c => c.clueOrder === 1);

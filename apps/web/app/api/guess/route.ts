@@ -13,6 +13,7 @@ import { submitGuess } from "@/services/guessTransaction";
 import { runInPrismaTransaction } from "@/services/prismaAttemptStore";
 import { validPuzzleId, validGuess, validGuestId } from "@/services/requestValidation";
 import { captureHandledApiError } from "@/services/apiErrorCapture";
+import { publicationDayReached } from "@/services/puzzleService";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
   const headers = new Headers(init.headers);
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
       where: { id: puzzle_id }, include: { clues: true }
     });
 
-    if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
+    if (!puzzle || puzzle.status !== "published" || !publicationDayReached(puzzle, new Date()) || !validPuzzleContent(puzzle)) {
       return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
 

@@ -47,6 +47,9 @@ Sentry.init({
 // Session Replay is intentionally NOT configured. Its recording integration
 // must never be added without a privacy review of its DOM capture boundary.
 
-// Navigation-transition tracking intentionally not wired: the installed
-// @sentry/nextjs 8.55.x does not export captureRouterTransitionStart, and
-// with tracesSampleRate 0 there are no navigation transactions to track.
+// Navigation-transition tracking intentionally not wired. The installed
+// @sentry/nextjs 10.78.x DOES export captureRouterTransitionStart from its
+// client entry (the server entry omits it by design), but with
+// tracesSampleRate 0 there are no navigation transactions to track, and
+// navigation URLs are the raw-URL privacy class contained above. Any future
+// re-enable of tracing must wire it only through the same privacy review.
