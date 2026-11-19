@@ -1,0 +1,11 @@
+Threadly is a daily word-guessing puzzle.
+
+Each day brings one new puzzle. You get up to five clues, revealed one at a time. Guess the answer at any point: the fewer clues you use, the more points you score, from 100 points for a first-clue solve down to 20 points when all five clues are out.
+
+- One new puzzle every day, resetting at 00:00 UTC
+- Forgiving answers: close spellings and plurals count
+- Personal stats and daily streaks on your device
+- Share your result card with friends without spoiling the answer
+- No ads and no account sign-up
+
+Threadly needs an internet connection to fetch each day's puzzle and check your guess.

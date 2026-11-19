@@ -1,0 +1,362 @@
+[
+  {
+    "title": "Launch pack #1",
+    "answer": "telescope",
+    "difficulty": 2,
+    "clues": [
+      "I changed how humanity sees the universe",
+      "Galileo aimed an early version of me at Jupiter's moons",
+      "Hubble is one of me, orbiting Earth",
+      "I use lenses or mirrors to make distant things look close",
+      "You might use me to look at the stars"
+    ]
+  },
+  {
+    "title": "Launch pack #2",
+    "answer": "honey",
+    "difficulty": 1,
+    "clues": [
+      "Humans have enjoyed me as a sweetener for thousands of years",
+      "I am made by insects that live in a colony with a queen",
+      "I am stored in hexagonal wax cells",
+      "Winnie the Pooh is always trying to get me",
+      "A sweet golden food made by bees"
+    ]
+  },
+  {
+    "title": "Launch pack #3",
+    "answer": "compass",
+    "difficulty": 2,
+    "clues": [
+      "I have guided travelers for over a thousand years",
+      "Early versions of me were made from a naturally magnetic stone called lodestone",
+      "Sailors trusted me on oceans long before satellites",
+      "My needle aligns with Earth's magnetic field",
+      "A small tool whose needle points north"
+    ]
+  },
+  {
+    "title": "Launch pack #4",
+    "answer": "volcano",
+    "difficulty": 1,
+    "clues": [
+      "I have shaped Earth's surface for billions of years",
+      "Pompeii was buried by one of me in the year 79",
+      "Magma is called lava once it leaves me",
+      "I erupt with ash and molten rock",
+      "A mountain that can spew lava"
+    ]
+  },
+  {
+    "title": "Launch pack #5",
+    "answer": "echo",
+    "difficulty": 2,
+    "clues": [
+      "I am a phenomenon you can hear but never see",
+      "Sonar works on the same principle as me",
+      "Bats use me to find their way in the dark",
+      "You hear me when sound bounces back off a surface",
+      "Shout into a canyon and I answer back"
+    ]
+  },
+  {
+    "title": "Launch pack #6",
+    "answer": "library",
+    "difficulty": 1,
+    "clues": [
+      "People have collected knowledge in me for thousands of years",
+      "The largest of me in the world is in Washington, D.C.",
+      "The Dewey Decimal System is used to organize me",
+      "You can borrow books from me for free",
+      "A quiet building full of books"
+    ]
+  },
+  {
+    "title": "Launch pack #7",
+    "answer": "glacier",
+    "difficulty": 2,
+    "clues": [
+      "I helped shape the landscapes we see today",
+      "I carved out the Great Lakes over thousands of years",
+      "Most of the fresh water on Earth is locked in ice like me",
+      "I flow, but often only a few centimeters a day",
+      "A huge, slow-moving river of ice"
+    ]
+  },
+  {
+    "title": "Launch pack #8",
+    "answer": "lighthouse",
+    "difficulty": 1,
+    "clues": [
+      "I have kept sailors safe for thousands of years",
+      "The Pharos of Alexandria, one of the Seven Wonders, was one of me",
+      "A keeper once lived inside me to tend the flame",
+      "My beam sweeps across the sea at night",
+      "A tall tower with a bright light that guides ships"
+    ]
+  },
+  {
+    "title": "Launch pack #9",
+    "answer": "bamboo",
+    "difficulty": 2,
+    "clues": [
+      "I am one of the fastest-growing plants on Earth",
+      "Despite my woody stalks, I am a grass, not a tree",
+      "I am used for scaffolding, flooring, and chopsticks",
+      "Giant pandas eat almost nothing but me",
+      "A tall, hollow, green plant loved by pandas"
+    ]
+  },
+  {
+    "title": "Launch pack #10",
+    "answer": "microscope",
+    "difficulty": 2,
+    "clues": [
+      "I opened up a world too small to see",
+      "Robert Hooke coined the word cell while looking through one of me at cork",
+      "Electron versions of me can image viruses",
+      "Biology labs rely on me every day",
+      "Scientists use me to look at cells"
+    ]
+  },
+  {
+    "title": "Launch pack #11",
+    "answer": "penguin",
+    "difficulty": 1,
+    "clues": [
+      "I am a bird that cannot fly",
+      "The emperor kind of me survives the Antarctic winter",
+      "I waddle on land but swim expertly",
+      "I look like I am wearing a tuxedo",
+      "A black-and-white flightless bird"
+    ]
+  },
+  {
+    "title": "Launch pack #12",
+    "answer": "rainbow",
+    "difficulty": 1,
+    "clues": [
+      "I am a sight you can see but never reach",
+      "I am caused by light bending inside water droplets",
+      "A double one of me has its colors reversed on the outer band",
+      "To see me you need the sun behind you and rain ahead",
+      "An arc of colors that appears after rain"
+    ]
+  },
+  {
+    "title": "Launch pack #13",
+    "answer": "castle",
+    "difficulty": 1,
+    "clues": [
+      "People have built me for defense for centuries",
+      "Moats and drawbridges were built to protect me",
+      "Kings and queens once lived in me",
+      "I have towers, thick walls, and sometimes a dungeon",
+      "A big stone fortress from medieval times"
+    ]
+  },
+  {
+    "title": "Launch pack #14",
+    "answer": "bicycle",
+    "difficulty": 1,
+    "clues": [
+      "I am one of the most efficient ways to travel",
+      "An early version of me, the penny-farthing, had one giant wheel",
+      "The Tour de France is my most famous race",
+      "Most of me are powered entirely by my rider's legs",
+      "Two wheels, pedals, and a chain"
+    ]
+  },
+  {
+    "title": "Launch pack #15",
+    "answer": "aquarium",
+    "difficulty": 1,
+    "clues": [
+      "I bring underwater life into people's homes",
+      "The largest of me hold millions of liters and even whale sharks",
+      "A healthy one of me needs filters, light, and careful water chemistry",
+      "A goldfish bowl is a tiny version of me",
+      "A glass tank full of water and fish"
+    ]
+  },
+  {
+    "title": "Launch pack #16",
+    "answer": "umbrella",
+    "difficulty": 1,
+    "clues": [
+      "I have kept people dry for thousands of years",
+      "My name comes from a Latin word for shade",
+      "Mary Poppins used one of me to fly",
+      "I fold up small and open into a canopy",
+      "You hold me over your head when it rains"
+    ]
+  },
+  {
+    "title": "Launch pack #17",
+    "answer": "pyramid",
+    "difficulty": 2,
+    "clues": [
+      "I am one of the oldest large structures still standing",
+      "The Great one at Giza was the tallest human-made structure for over 3,800 years",
+      "I was built as a tomb for rulers called pharaohs",
+      "My triangular sides meet at a single point",
+      "A giant stone shape with a square base, famous in Egypt"
+    ]
+  },
+  {
+    "title": "Launch pack #18",
+    "answer": "owl",
+    "difficulty": 1,
+    "clues": [
+      "I am a bird that comes alive at night",
+      "Special feathers let me fly almost silently",
+      "I can turn my head up to about 270 degrees",
+      "I hunt mice using very sharp hearing",
+      "A nocturnal bird that hoots"
+    ]
+  },
+  {
+    "title": "Launch pack #19",
+    "answer": "bridge",
+    "difficulty": 1,
+    "clues": [
+      "People have built me to cross obstacles for thousands of years",
+      "The Golden Gate and the Brooklyn are famous examples of me",
+      "Suspension, arch, and beam are types of me",
+      "Engineers test me against wind and heavy loads",
+      "A structure that carries a road over water"
+    ]
+  },
+  {
+    "title": "Launch pack #20",
+    "answer": "camera",
+    "difficulty": 1,
+    "clues": [
+      "I let people freeze a moment in time",
+      "My earliest versions needed exposures lasting minutes",
+      "Polaroid made me instant",
+      "Most phones now carry several of me",
+      "You take photos with me"
+    ]
+  },
+  {
+    "title": "Launch pack #21",
+    "answer": "desert",
+    "difficulty": 1,
+    "clues": [
+      "About a third of Earth's land surface is me",
+      "The Sahara is the largest hot example of me",
+      "Antarctica counts as one of me because I am defined by dryness, not heat",
+      "Cacti and camels are adapted to survive in me",
+      "A dry landscape with very little rain"
+    ]
+  },
+  {
+    "title": "Launch pack #22",
+    "answer": "elevator",
+    "difficulty": 1,
+    "clues": [
+      "I changed how tall cities could grow",
+      "Elisha Otis made me safe with a special brake in the 1850s",
+      "Skyscrapers would be impractical without me",
+      "I travel up and down a shaft on cables",
+      "A small moving room that carries you between floors"
+    ]
+  },
+  {
+    "title": "Launch pack #23",
+    "answer": "kangaroo",
+    "difficulty": 1,
+    "clues": [
+      "I am an animal that gets around by hopping",
+      "Wallabies are my smaller relatives",
+      "I balance on my strong tail and can box with my forearms",
+      "I carry my baby in a pouch",
+      "A hopping marsupial from Australia"
+    ]
+  },
+  {
+    "title": "Launch pack #24",
+    "answer": "mirror",
+    "difficulty": 1,
+    "clues": [
+      "People have used me to see themselves for thousands of years",
+      "Telescopes and lasers use precision versions of me",
+      "I am usually glass with a thin metal backing",
+      "Text held up to me appears backward",
+      "You look into me to see yourself"
+    ]
+  },
+  {
+    "title": "Launch pack #25",
+    "answer": "waterfall",
+    "difficulty": 1,
+    "clues": [
+      "I am one of nature's loudest sights",
+      "The tallest of me, Angel Falls, drops nearly a kilometer",
+      "Niagara is a famous one of me on the border of two countries",
+      "Erosion slowly moves me upstream over the years",
+      "Water plunging down from a great height"
+    ]
+  },
+  {
+    "title": "Launch pack #26",
+    "answer": "robot",
+    "difficulty": 2,
+    "clues": [
+      "I exist in science fiction and in real factories",
+      "The word for me comes from a Czech play written in 1920",
+      "Mars rovers are spacefaring examples of me",
+      "Factories use me to weld, paint, and assemble",
+      "A programmable machine that can move and do tasks"
+    ]
+  },
+  {
+    "title": "Launch pack #27",
+    "answer": "candle",
+    "difficulty": 1,
+    "clues": [
+      "I lit homes for centuries before electricity",
+      "I am made of wax with a wick",
+      "Birthday cakes are topped with several of me",
+      "You blow me out and make a wish",
+      "A small flame on a stick of wax"
+    ]
+  },
+  {
+    "title": "Launch pack #28",
+    "answer": "helicopter",
+    "difficulty": 1,
+    "clues": [
+      "I can fly without a runway",
+      "I can hover in place, fly backward, and land straight down",
+      "A small rotor on my tail keeps me from spinning",
+      "Rescue teams use me where airplanes cannot land",
+      "An aircraft with spinning blades on top"
+    ]
+  },
+  {
+    "title": "Launch pack #29",
+    "answer": "museum",
+    "difficulty": 1,
+    "clues": [
+      "I preserve treasures of art and history for the public",
+      "The Louvre is the most visited of me in the world",
+      "People called curators look after my collection",
+      "School field trips often visit me",
+      "A building where you go to see famous objects"
+    ]
+  },
+  {
+    "title": "Launch pack #30",
+    "answer": "submarine",
+    "difficulty": 2,
+    "clues": [
+      "I explore a world humans cannot reach unaided",
+      "Deep-diving versions of me have explored ocean trenches",
+      "I use ballast tanks to sink and rise",
+      "A periscope lets me peek above the surface",
+      "A ship that sails beneath the sea"
+    ]
+  }
+]
