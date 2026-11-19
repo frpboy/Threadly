@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "fix/android-progress-api-20261107": false,
-      "native/secure-beta-20261110": false
+      "native/secure-beta-20261110": false,
+      "sentry-privacy-containment": false
     }
   }
 }
