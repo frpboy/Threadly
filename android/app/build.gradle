@@ -20,8 +20,8 @@ android {
         minSdk 24
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         targetSdk 36
-        versionCode 4
-        versionName '0.2.1-beta.3'
+        versionCode 5
+        versionName '1.0.0'
         buildConfigField 'String', 'API_BASE', '"' + (betaApi ?: 'https://native-beta-not-configured.invalid') + '"'
         // Crash reporting stays off unless a build type supplies a DSN.
         manifestPlaceholders['sentryDsn'] = ''
