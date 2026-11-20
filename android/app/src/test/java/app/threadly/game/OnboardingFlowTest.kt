@@ -67,5 +67,8 @@ class OnboardingFlowTest {
         assertTrue(text.contains("fewer clues"))
         // Open store-native play: a per-device player profile, no invitation gate.
         assertTrue(text.contains("player profile"))
+        // Behavior contract: shipped onboarding must not promise an invitation-only
+        // gate that open play does not have (would mislead store users).
+        assertFalse(text.contains("invitation", ignoreCase = true))
     }
 }
