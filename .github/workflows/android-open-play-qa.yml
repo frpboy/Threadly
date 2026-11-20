@@ -2,7 +2,7 @@ name: Threadly open-play real server disposable PostgreSQL QA
 on:
   push:
     branches: ['ci/android-open-play-qa']
-    paths: ['android/**', '.github/workflows/android-real-server-qa.yml']
+    paths: ['android/**', '.github/workflows/android-open-play-qa.yml', '.github/workflows/android-real-server-qa.yml']
 permissions:
   contents: read
 concurrency:
