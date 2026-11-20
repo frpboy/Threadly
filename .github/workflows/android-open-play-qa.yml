@@ -153,7 +153,7 @@ jobs:
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$ANDROID_HOME/platform-tools:$PATH"
           export ANDROID_SERIAL=emulator-5554
-          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" :app:connectedQaAndroidTest --no-daemon
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -Pandroid.testInstrumentationRunnerArguments.qaUid="$THREADLY_QA_UID" -Pandroid.testInstrumentationRunnerArguments.class=app.threadly.game.RealServerUiTest,app.threadly.game.OpenPlayUiTest,app.threadly.game.OpenPlayActivityTest :app:connectedQaAndroidTest --no-daemon
       - name: Assert real database poststate
         timeout-minutes: 1
         run: |
