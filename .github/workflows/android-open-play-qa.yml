@@ -57,7 +57,7 @@ jobs:
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
-          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
+          timeout --kill-after=10s 600s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -PthreadlyBetaApiBase=https://native-beta-not-configured.invalid :app:testQaUnitTest :app:assembleQa :app:assembleQaAndroidTest :app:processReleaseMainManifest --no-daemon
           timeout --kill-after=10s 90s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:dependencyInsight --configuration qaRuntimeClasspath --dependency androidx.compose.ui:ui-test-manifest --no-daemon > "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           cat "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
           grep -F 'androidx.compose.ui:ui-test-manifest:' "$RUNNER_TEMP/qa-ui-test-manifest-dependency.txt"
