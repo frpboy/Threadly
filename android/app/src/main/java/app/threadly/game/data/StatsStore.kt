@@ -80,6 +80,9 @@ class StatsStore internal constructor(private val kv: KvStore) {
         LocalStats.isValidIsoDay(r.day) && r.cluesUsed in 1..5 &&
         (if (r.solved) r.score == 120 - r.cluesUsed * 20 else r.score == 0)
 
+    /** Wipe on-device history after a confirmed server-side player-data deletion. */
+    fun clear(): Boolean = commit(emptyList())
+
     private fun commit(records: List<GameResult>): Boolean {
         val arr = JSONArray()
         records.forEach { r ->

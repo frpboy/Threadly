@@ -55,6 +55,33 @@ class HttpGameApi(private val baseUrl: String, private val device: BetaCredentia
         return if (r.code == 200) r.json?.optString("token")?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{43}")) } else null
     }
 
+    /** Outcome of a silent open self-enrollment attempt. */
+    sealed class OpenEnroll {
+        data class Success(val token: String, val guestId: String, val expiresAt: Long) : OpenEnroll()
+        /** The server answered definitively: this backend offers no open enrollment (legacy beta deploy). */
+        object NotOffered : OpenEnroll()
+        /** Network failure, rate limit or 5xx: retry open enrollment; NEVER a reason to show the invitation gate. */
+        object Transient : OpenEnroll()
+    }
+
+    suspend fun enrollOpen(): OpenEnroll {
+        val r = try { call("POST", "/api/beta/enroll", JSONObject().put("code", "")) }
+            catch (e: Exception) { return OpenEnroll.Transient }
+        val token = r.json?.optString("token")?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{43}")) }
+        return when {
+            r.code == 200 && token != null -> OpenEnroll.Success(token, r.json?.optString("guestId").orEmpty(), r.json?.optLong("expiresAt") ?: 0)
+            r.code == 401 || r.code == 404 -> OpenEnroll.NotOffered
+            else -> OpenEnroll.Transient
+        }
+    }
+
+    /** Play data-deletion: the device credential is the proof; the server revokes it atomically. */
+    suspend fun deletePlayerData(): Boolean {
+        val r = try { call("DELETE", "/api/player-data", null) }
+            catch (e: Exception) { return false }
+        return r.code == 200 && r.json?.optBoolean("deleted") == true
+    }
+
     override suspend fun daily(): Daily? {
         val r = call("GET", "/api/daily", null)
         val j = r.json ?: return null

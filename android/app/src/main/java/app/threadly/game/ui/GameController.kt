@@ -11,6 +11,8 @@ import app.threadly.game.data.AccessDeniedException
 sealed interface UiState {
     data object Loading : UiState
     data class Error(val message: String) : UiState
+    /** The stored device credential was rejected (expired, revoked, or past its request cap). */
+    data object ProfileExpired : UiState
     data class Playing(
         val puzzleId: String, val title: String, val puzzleDay: String?, val progress: Progress,
         val notice: String = "", val submitting: Boolean = false,
@@ -39,7 +41,7 @@ class GameController(
         // day stays unknown: no device-clock guess is shown, shared or persisted.
         render(daily.puzzleId, daily.title, daily.publishedDate, p, "")
     } catch (e: AccessDeniedException) {
-        UiState.Error("Beta access expired or was revoked. Use a new invitation to re-enroll.")
+        UiState.ProfileExpired
     } catch (e: IOException) {
         UiState.Error("No connection. Check your network and try again.")
     }
@@ -64,7 +66,7 @@ class GameController(
                 else -> current.copy(notice = "Couldn't check that guess. Try again.", submitting = false)
             }
         } catch (e: AccessDeniedException) {
-            UiState.Error("Beta access expired or was revoked. Use a new invitation to re-enroll.")
+            UiState.ProfileExpired
         } catch (e: PendingGuessException) {
             current.copy(notice = "Confirm your pending guess first: ${e.pendingGuess}", submitting = false)
         } catch (e: IOException) {

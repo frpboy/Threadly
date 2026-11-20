@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class GameViewModel(
-    api: GameApi,
+    private val api: GameApi,
     guestId: String,
     private val device: BetaCredentials? = null,
     private val stats: StatsStore? = null,
@@ -27,6 +27,22 @@ class GameViewModel(
 
     /** Local stats for the finished screen; empty summary when history is unreadable or absent. */
     fun statsSummary(): StatsSummary = stats?.summary(today()) ?: StatsSummary(0, 0, 0, 0, emptyMap())
+
+    /** Server-issued player ID for an open store-native profile; null on the legacy invitation lane. */
+    fun playerId(): String? = device?.playerId()
+
+    /**
+     * Play data-deletion: the server deletes this identity's rows and revokes the device
+     * credential atomically; only then is local state (stats, credential, pending guess)
+     * wiped. Returns false when the server did not confirm, and nothing local is cleared.
+     */
+    suspend fun deletePlayerData(): Boolean {
+        val http = api as? app.threadly.game.data.HttpGameApi ?: return false
+        if (!http.deletePlayerData()) return false
+        stats?.clear()
+        (device as? app.threadly.game.data.DeviceCredentials)?.clear()
+        return true
+    }
 
     /** Spoiler-free share text for a finished game. */
     fun shareCard(s: UiState.Finished): String = ShareCard.build(

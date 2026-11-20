@@ -54,30 +54,47 @@ class MainActivity : ComponentActivity() {
                     override fun <T : ViewModel> create(modelClass: Class<T>): T =
                         GameViewModel(HttpGameApi(BuildConfig.API_BASE, device), "server-owned-device", device, StatsStore(this@MainActivity)) as T
                 })
-                GameScreen(vm, onReenroll = { enrolled = false })
+                GameScreen(vm, onReenroll = { enrolled = false }, onDeleted = { enrolled = false })
             } else {
                 var code by remember { mutableStateOf("") }
-                var busy by remember { mutableStateOf(true) }
-                var openTried by remember { mutableStateOf(false) }
+                var busy by remember { mutableStateOf(false) }
+                var gate by remember { mutableStateOf("trying") } // trying | retry | invitation
+                var retryNonce by remember { mutableStateOf(0) }
                 var error by remember { mutableStateOf("") }
                 val scope = rememberCoroutineScope()
-                // Store-native open play: try a silent self-enrollment first (one isolated device
-                // credential, no invitation). Only when the server has open enrollment disabled
-                // (e.g. the legacy synthetic-beta deployment) does the invitation gate appear.
-                LaunchedEffect(Unit) {
-                    try {
-                        val token = HttpGameApi(BuildConfig.API_BASE).enroll("")
-                        if (token != null) { device.saveToken(token); enrolled = true }
-                    } catch (_: Exception) { /* no open enrollment on this backend */ }
-                    busy = false; openTried = true
+                // Store-native open play: silent self-enrollment first (one isolated device
+                // credential, no invitation). Transient failures (offline, rate limit, 5xx)
+                // retry with backoff and then offer a manual retry; the invitation gate appears
+                // ONLY when the server definitively says open enrollment is not offered (legacy deploy).
+                LaunchedEffect(retryNonce) {
+                    gate = "trying"
+                    var attempt = 0
+                    while (true) {
+                        when (val r = HttpGameApi(BuildConfig.API_BASE).enrollOpen()) {
+                            is HttpGameApi.OpenEnroll.Success -> { device.saveEnrollment(r.token, r.guestId, r.expiresAt); enrolled = true; break }
+                            HttpGameApi.OpenEnroll.NotOffered -> { gate = "invitation"; break }
+                            HttpGameApi.OpenEnroll.Transient -> {
+                                attempt++
+                                if (attempt >= 3) { gate = "retry"; break }
+                                kotlinx.coroutines.delay(1500L * attempt)
+                            }
+                        }
+                    }
                 }
                 MaterialTheme(colorScheme = darkColorScheme()) {
                     Surface(Modifier.fillMaxSize()) {
                         Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
-                            if (!openTried) {
-                                Text("Threadly", style = MaterialTheme.typography.headlineMedium)
-                                Text("Setting up this device's private player profile...")
-                            } else {
+                            when (gate) {
+                                "trying" -> {
+                                    Text("Threadly", style = MaterialTheme.typography.headlineMedium)
+                                    Text("Setting up this device's private player profile...")
+                                }
+                                "retry" -> {
+                                    Text("Threadly", style = MaterialTheme.typography.headlineMedium)
+                                    Text("Could not reach the game server. Check your connection and try again.")
+                                    Button(onClick = { retryNonce++ }) { Text("Try again") }
+                                }
+                                else -> {
                             Text("Threadly native beta", style = MaterialTheme.typography.headlineMedium)
                             Text("Synthetic test puzzles. Enter your one-time invitation. This beta expires after its test period.")
                             OutlinedTextField(value = code, onValueChange = { if (it.length <= 64) code = it }, label = { Text("Invitation") }, enabled = !busy, singleLine = true)
@@ -93,6 +110,7 @@ class MainActivity : ComponentActivity() {
                                     finally { busy = false }
                                 }
                             }) { Text(if (busy) "Enrolling..." else "Start beta") }
+                                }
                             }
                         }
                     }

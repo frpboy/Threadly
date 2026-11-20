@@ -26,8 +26,11 @@ CREATE TABLE threadly_beta_device (
 );
 
 -- Apply this additional table in the SAME approved empty test target only.
-CREATE TABLE threadly_beta_request (
-  guest_id text NOT NULL REFERENCES threadly_beta_device(guest_id),
+-- Shared guess-idempotency receipts for BOTH lanes (legacy beta devices and store-native
+-- open devices). Intentionally no FK: identities live in threadly_beta_device OR
+-- threadly_open_device; lifecycle cleanup happens in deleteIdentityData, not cascades.
+CREATE TABLE threadly_guess_receipt (
+  guest_id text NOT NULL,
   request_id uuid NOT NULL,
   payload_hash char(64) NOT NULL,
   result jsonb NOT NULL,

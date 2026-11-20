@@ -1,6 +1,6 @@
 import { boundedJson } from "@/services/nativeBeta/body";
 import { betaTransaction, validRequestId, RequestConflict } from "@/services/nativeBeta/guessRequest";
-import { betaEnabled, nativePrincipal, credentialPresent } from "@/services/nativeBeta/access";
+import { betaEnabled, nativePrincipal, authorizationPresent } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -11,7 +11,7 @@ import { recalculatePuzzleDifficulty } from "@/services/difficultyService";
 import { MAX_CLUES } from "@/services/attemptService";
 import { submitGuess } from "@/services/guessTransaction";
 import { runInPrismaTransaction } from "@/services/prismaAttemptStore";
-import { validPuzzleId, validGuess, validGuestId } from "@/services/requestValidation";
+import { validPuzzleId, validGuess, validGuestId, claimableGuestId } from "@/services/requestValidation";
 import { captureHandledApiError } from "@/services/apiErrorCapture";
 import { publicationDayReached } from "@/services/puzzleService";
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const beta = betaEnabled();
     // A presented-but-invalid device credential is always rejected; an absent one only in the legacy isolated-beta gate.
     const device = await nativePrincipal(req);
-    if (!device && (beta || credentialPresent(req))) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    if (!device && (beta || authorizationPresent(req))) return privateJson({ error: "Unauthorized" }, { status: 401 });
     // clues_revealed from the client is ignored: the server derives it from its own guess log.
     let body: unknown;
     try {
@@ -39,7 +39,8 @@ export async function POST(req: NextRequest) {
     }
     const { puzzle_id, guess, guest_id: claimedGuestId, request_id } = body as Record<string, unknown>;
     const guest_id = device?.guestId ?? claimedGuestId;
-    if (beta && !validRequestId(request_id)) return privateJson({ error: "A request_id UUID is required" }, { status: 400 });
+    // Any credentialed device (legacy beta or open) records an idempotency receipt keyed by request_id.
+    if (device && !validRequestId(request_id)) return privateJson({ error: "A request_id UUID is required" }, { status: 400 });
 
     if (!validPuzzleId(puzzle_id) || !validGuess(guess)) {
       return privateJson(
@@ -56,14 +57,19 @@ export async function POST(req: NextRequest) {
       return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
 
-    // Get current session for logged in user
-    const session = beta ? null : await auth();
+    // Get current session for logged in user. A credentialed device request never
+    // consults the browser session: one request, one unambiguous owner.
+    const session = (beta || device) ? null : await auth();
     const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
-    if (!userId && !validGuestId(guest_id)) {
+    // A credentialed device uses its server-issued identity; a guest may only claim
+    // a guest-namespace id (never a server-issued dev-*/beta-* one).
+    if (!userId && !(device ? validGuestId(device.guestId) : claimableGuestId(claimedGuestId))) {
       return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
     }
-    const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;
+    // Device identity takes precedence over any account session, and matches the
+    // identity the idempotency receipt is recorded under.
+    const playerKey = device ? `g:${device.guestId}` : userId ? `u:${userId}` : `g:${guest_id}`;
 
     const { isCorrect, similarity } = checkAnswer(guess.trim(), puzzle.answer);
 

@@ -22,16 +22,22 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 
 private val Bg = Color(0xFF12141C)
 private val Card = Color(0xFF1E2230)
 
 @Composable
-fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null) {
+fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null, onDeleted: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
     var confirmDiscard by remember { mutableStateOf(false) }
     var confirmEnroll by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleteFailed by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    val deleteScope = rememberCoroutineScope()
+    val topClipboard = androidx.compose.ui.platform.LocalClipboardManager.current
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
             Modifier.fillMaxSize().background(Bg).safeDrawingPadding()
@@ -41,10 +47,33 @@ fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null) {
 
             onReenroll?.let { action ->
                 TextButton(enabled = state !is UiState.Loading && (state !is UiState.Playing || !(state as UiState.Playing).submitting), onClick = { confirmEnroll = true }) { Text("Re-enroll") }
-                if (confirmEnroll) AlertDialog(onDismissRequest = { confirmEnroll = false }, title = { Text("Use a new invitation?") },
-                    text = { Text("Ask for a replacement invitation first. A successful new enrollment replaces this device credential AND any saved pending guess. The old guess may already have counted. Your existing beta progress stays on the server, but does not transfer to the new device credential.") },
-                    confirmButton = { TextButton(onClick = { confirmEnroll = false; action() }) { Text("Enter new invitation") } },
+                if (confirmEnroll) AlertDialog(onDismissRequest = { confirmEnroll = false }, title = { Text("Replace this device profile?") },
+                    text = { Text("A new enrollment replaces this device profile AND any saved pending guess. The old guess may already have counted. Your existing progress stays on the server, but does not transfer to the new profile and cannot be recovered.") },
+                    confirmButton = { TextButton(onClick = { confirmEnroll = false; action() }) { Text("Replace profile") } },
                     dismissButton = { TextButton(onClick = { confirmEnroll = false }) { Text("Cancel") } })
+            }
+            // Play data-deletion + player ID (open store-native profile). Always reachable,
+            // not only on the finished screen.
+            vm.playerId()?.let { id ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Player ID: $id", color = Color(0xFFAAB0C0), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { topClipboard.setText(androidx.compose.ui.text.AnnotatedString(id)) }) { Text("Copy") }
+                }
+            }
+            if (onDeleted != null) {
+                TextButton(enabled = !deleting, onClick = { confirmDelete = true }) { Text(if (deleting) "Deleting..." else "Delete my data", color = Color(0xFFFF8A80)) }
+                if (deleteFailed) Text("Deletion did not complete. Nothing was removed locally - check your connection and try again.", color = Color(0xFFFF8A80), fontSize = 13.sp)
+                if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false }, title = { Text("Delete your player data?") },
+                    text = { Text("This permanently deletes your server-side game history (guesses, streaks, stats, leaderboard entries) and revokes this device's player profile. On-device stats are cleared too. This cannot be undone.") },
+                    confirmButton = { TextButton(onClick = {
+                        confirmDelete = false; deleting = true; deleteFailed = false
+                        deleteScope.launch {
+                            val ok = try { vm.deletePlayerData() } catch (_: Exception) { false }
+                            deleting = false
+                            if (ok) onDeleted() else deleteFailed = true
+                        }
+                    }) { Text("Delete permanently") } },
+                    dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } })
             }
             pending?.let { saved ->
                 Text("Pending guess: ${saved.text}. Its response was not confirmed.", color = Color(0xFFFFD479))
@@ -67,6 +96,20 @@ fun GameScreen(vm: GameViewModel, onReenroll: (() -> Unit)? = null) {
                 }
                 is UiState.Playing -> Playing(s, vm::submit)
                 is UiState.Finished -> Finished(s, vm)
+                UiState.ProfileExpired -> {
+                    // The stored credential is dead (expired, revoked, or capped). The player
+                    // chooses: wipe the old identity first (its credential still proves
+                    // possession for deletion even when expired) or simply start fresh.
+                    Text("This device profile expired or was revoked.", color = Color(0xFFFFD479), fontSize = 16.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("Your old progress stays on the server but cannot be recovered or moved to a new profile.", color = Color(0xFFAAB0C0), fontSize = 13.sp)
+                    Spacer(Modifier.height(12.dp))
+                    if (vm.playerId() != null && onDeleted != null) {
+                        Button(enabled = !deleting, onClick = { confirmDelete = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Delete my old data and start fresh") }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Button(enabled = !deleting, onClick = { onReenroll?.invoke() }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Start a new profile") }
+                }
             }
         }
     }

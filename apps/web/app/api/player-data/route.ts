@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
-import { nativePrincipal, credentialPresent, openNativeEnabled } from '@/services/nativeBeta/access';
-import { openDeviceStore, deleteGuestData } from '@/services/nativeBeta/store';
-import { validGuestId } from '@/services/requestValidation';
+import { nativePrincipal, authorizationPresent, openNativeEnabled } from '@/services/nativeBeta/access';
+import { deleteIdentityData, openDeviceStore } from '@/services/nativeBeta/store';
+import { claimableGuestId } from '@/services/requestValidation';
 import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -15,14 +15,27 @@ const headers = { 'Cache-Control': 'private, no-store' };
  */
 export async function DELETE(request: Request) {
   try {
-    if (credentialPresent(request)) {
+    if (authorizationPresent(request)) {
+      let guestId: string | null = null;
       const device = await nativePrincipal(request);
-      if (!device || !device.open || !openNativeEnabled()) {
+      if (device) {
+        // The legacy synthetic beta lane has no self-serve deletion (test data only).
+        if (!device.open || !openNativeEnabled()) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
+        }
+        guestId = device.guestId;
+      } else if (openNativeEnabled()) {
+        // A credential past its request cap or expiry still proves possession for
+        // deletion (never for gameplay). A malformed header or unknown/revoked
+        // credential can never fall through to the guest path.
+        guestId = await openDeviceStore.findOpenDeviceForDeletion(request.headers.get('authorization')!);
+      }
+      if (!guestId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers });
       }
-      const revokedGuest = await openDeviceStore.revokeOpenDevice(request.headers.get('authorization')!);
-      const counts = await deleteGuestData(device.guestId);
-      return NextResponse.json({ deleted: true, identity: 'device', counts, deviceRevoked: revokedGuest !== null }, { headers });
+      // One transaction: data rows AND the credential revocation commit or roll back together.
+      const { counts, deviceRemoved } = await deleteIdentityData(guestId, request.headers.get('authorization'));
+      return NextResponse.json({ deleted: true, identity: 'device', counts, deviceRemoved }, { headers });
     }
     let body: unknown;
     try {
@@ -31,10 +44,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Request body must be valid JSON' }, { status: 400, headers });
     }
     const { guest_id: guestId, confirm } = (body ?? {}) as Record<string, unknown>;
-    if (confirm !== true || !validGuestId(guestId)) {
+    // Guests prove possession with their high-entropy browser id. Server-issued
+    // identities (dev-*/beta-*) are NOT deletable this way: they require their
+    // credential, otherwise anyone who learned a player ID could wipe it.
+    if (confirm !== true || !claimableGuestId(guestId)) {
       return NextResponse.json({ error: 'guest_id and confirm:true are required' }, { status: 400, headers });
     }
-    const counts = await deleteGuestData(guestId as string);
+    const { counts } = await deleteIdentityData(guestId as string);
     return NextResponse.json({ deleted: true, identity: 'guest', counts }, { headers });
   } catch (error) {
     captureHandledApiError('player-data/delete', error);

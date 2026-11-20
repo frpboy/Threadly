@@ -19,7 +19,7 @@ export type NativePrincipal = { guestId: string; expiresAt?: number; open?: bool
 /**
  * Authenticate a presented device credential. Tries the isolated synthetic beta
  * target first (legacy lane), then open store-native devices. Returns null when
- * no credential is presented OR none matches; callers use credentialPresent() to
+ * no credential is presented OR none matches; callers use authorizationPresent() to
  * tell "no credential" (web guest path) apart from "bad credential" (401).
  */
 export async function nativePrincipal(request: Request): Promise<NativePrincipal | null> {
@@ -39,6 +39,16 @@ export async function nativePrincipal(request: Request): Promise<NativePrincipal
 
 export function credentialPresent(request: Request): boolean {
   return bearer(request.headers.get('authorization')) !== null;
+}
+
+/**
+ * Any non-empty Authorization header, parseable or not. Routes use this for the
+ * 401 decision: a malformed credential must never silently fall back to the
+ * public guest path (it would let a caller downgrade a bad token into guest play).
+ */
+export function authorizationPresent(request: Request): boolean {
+  const header = request.headers.get('authorization');
+  return typeof header === 'string' && header.trim().length > 0;
 }
 
 /**

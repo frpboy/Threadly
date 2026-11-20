@@ -2,7 +2,7 @@ import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { auth } from "@/auth";
-import { validPuzzleId, validGuestId } from "@/services/requestValidation";
+import { validPuzzleId, claimableGuestId } from "@/services/requestValidation";
 import { buildProgress } from "@/services/progressService.ts";
 import { prismaHistory } from "@/services/prismaAttemptStore";
 import { calculateScore } from "@/services/scoringService";
@@ -35,7 +35,8 @@ export async function POST(req: NextRequest) {
     if (requested_clue_order > 1) {
       const session = await auth();
       const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-      if (!userId && !validGuestId(guest_id)) {
+      // Guests may only claim a guest-namespace id, never a server-issued dev-*/beta-* one.
+      if (!userId && !claimableGuestId(guest_id)) {
         return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
       }
       const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;

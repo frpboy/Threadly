@@ -1,5 +1,5 @@
 import { boundedJson } from "@/services/nativeBeta/body";
-import { betaEnabled, nativePrincipal, credentialPresent } from "@/services/nativeBeta/access";
+import { betaEnabled, nativePrincipal, authorizationPresent } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -7,7 +7,7 @@ import { auth } from "@/auth";
 import { calculateScore } from "@/services/scoringService";
 import { buildProgress } from "@/services/progressService.ts";
 import { prismaHistory } from "@/services/prismaAttemptStore";
-import { validPuzzleId, validGuestId } from "@/services/requestValidation";
+import { validPuzzleId, validGuestId, claimableGuestId } from "@/services/requestValidation";
 import { captureHandledApiError } from "@/services/apiErrorCapture";
 
 function privateJson(body: unknown, init: ResponseInit = {}) {
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const beta = betaEnabled();
     // A presented-but-invalid device credential is always rejected; an absent one only in the legacy isolated-beta gate.
     const device = await nativePrincipal(req);
-    if (!device && (beta || credentialPresent(req))) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    if (!device && (beta || authorizationPresent(req))) return privateJson({ error: "Unauthorized" }, { status: 401 });
     let body: unknown;
     try {
       body = beta ? await boundedJson(req) : await req.json();
@@ -38,9 +38,13 @@ export async function POST(req: NextRequest) {
     if (!validPuzzleId(puzzle_id)) {
       return privateJson({ error: "puzzle_id is required" }, { status: 400 });
     }
-    const session = beta ? null : await auth();
+    // A credentialed device request never consults the browser session: one request,
+    // one unambiguous owner.
+    const session = (beta || device) ? null : await auth();
     const userId = (session?.user as { id?: string } | undefined)?.id ?? null;
-    if (!userId && !validGuestId(guest_id)) {
+    // A credentialed device uses its server-issued identity; a guest may only claim
+    // a guest-namespace id (never a server-issued dev-*/beta-* one).
+    if (!userId && !(device ? validGuestId(device.guestId) : claimableGuestId(claimedGuestId))) {
       return privateJson({ error: "guest_id is required for guests" }, { status: 400 });
     }
     const puzzle = await db.puzzle.findUnique({
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
     if (!puzzle || puzzle.status !== "published" || !validPuzzleContent(puzzle)) {
       return privateJson({ error: "Puzzle not found" }, { status: 404 });
     }
-    const playerKey = userId ? `u:${userId}` : `g:${guest_id}`;
+    const playerKey = device ? `g:${device.guestId}` : userId ? `u:${userId}` : `g:${guest_id}`;
     const history = await prismaHistory()(puzzle.id, playerKey);
     const progress = buildProgress({
       history,

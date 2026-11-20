@@ -61,6 +61,19 @@ export const openDeviceStore = {
     const r = rows[0];
     return r ? { guestId: r.guest_id, expiresAt: r.expires_at.getTime() } : null;
   },
+  /**
+   * Deletion proof ONLY: matches the credential without consuming a request and
+   * without the 2000-request cap or the 90-day expiry. A player whose credential
+   * hit its cap or expired must still be able to delete their data; possession of
+   * the unrevoked credential remains the proof. Never used for gameplay.
+   */
+  async findOpenDeviceForDeletion(header: string) {
+    const token = bearer(header);
+    if (!token) return null;
+    const rows = await db.$queryRaw<Array<{ guest_id: string }>>`
+      SELECT guest_id FROM threadly_open_device WHERE token_hash = ${digest(token)} AND revoked = false`;
+    return rows[0]?.guest_id ?? null;
+  },
   /** Global, IP-independent rate limit: max 30 open enrollments per minute. */
   async allowOpenEnrollment() {
     const rows = await db.$queryRaw<Array<{ n: number }>>`
@@ -72,31 +85,49 @@ export const openDeviceStore = {
     return rows.length === 1;
   },
   async createOpenDevice(now = Date.now(), random = randomBytes) {
+    // Opportunistic cleanup: credentials expired for over 30 days are unreachable
+    // (clients re-enroll after expiry) and their gameplay data can no longer be
+    // authenticated, so the rows are removed and issuance cannot grow without bound.
+    await db.$executeRaw`DELETE FROM threadly_open_device WHERE expires_at < now() - interval '30 days'`;
     const { token, guestId, expiresAt } = mintOpenCredential(random, now, OPEN_TTL_MS);
     await db.$executeRaw`
       INSERT INTO threadly_open_device (token_hash, guest_id, expires_at)
       VALUES (${digest(token)}, ${guestId}, ${new Date(expiresAt)})`;
     return { token, guestId, expiresAt };
   },
-  /** Deletion proof for native players: the live credential revokes itself and names its identity. */
-  async revokeOpenDevice(header: string) {
-    const token = bearer(header);
-    if (!token) return null;
-    const rows = await db.$queryRaw<Array<{ guest_id: string }>>`
-      UPDATE threadly_open_device SET revoked = true
-      WHERE token_hash = ${digest(token)} AND revoked = false
-      RETURNING guest_id`;
-    return rows[0]?.guest_id ?? null;
-  },
 };
 
-/** Delete every server-side row for a guest identity. Returns per-table counts for the receipt. */
-export async function deleteGuestData(guestId: string) {
+/**
+ * Delete every server-side row for a guest identity in ONE transaction.
+ * Idempotency receipts (threadly_guess_receipt) hold a guest's guess payloads,
+ * so they are player data and go with the rest. For open native devices the
+ * presenting credential is revoked inside the same transaction: a failed delete
+ * rolls back and never leaves a live credential pointing at half-wiped data.
+ */
+export async function deleteIdentityData(guestId: string, openAuthHeader?: string | null) {
+  const openToken = openAuthHeader ? bearer(openAuthHeader) : null;
+  const openHash = openToken ? digest(openToken) : null;
   return db.$transaction(async tx => {
+    // Serialize against already-authorized in-flight gameplay for this identity:
+    // the receipt lock is held from the start of every credentialed guess
+    // transaction (betaTransaction), the award lock from every award write
+    // (prismaAttemptStore). A deletion either waits for or blocks those writes;
+    // it can never interleave with them.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`threadly:beta-request:${guestId}`}, 0))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`threadly:award:g:${guestId}`}, 0))`;
     const guesses = await tx.$executeRaw`DELETE FROM guesses WHERE guest_id = ${guestId}`;
     const streaks = await tx.$executeRaw`DELETE FROM streaks WHERE guest_id = ${guestId}`;
     const stats = await tx.$executeRaw`DELETE FROM stats WHERE guest_id = ${guestId}`;
     const leaderboard = await tx.$executeRaw`DELETE FROM leaderboard_entries WHERE guest_id = ${guestId}`;
-    return { guesses, streaks, stats, leaderboard };
+    const receipts = await tx.$executeRaw`DELETE FROM threadly_guess_receipt WHERE guest_id = ${guestId}`;
+    // Self-deletion removes the device row entirely (data minimization: no retained
+    // token hash or identity after a confirmed delete). The revoked flag remains only
+    // for administrative abuse revocation. Same transaction: a failed delete rolls
+    // everything back, so deletion is safely retryable.
+    let deviceRemoved = false;
+    if (openHash) {
+      deviceRemoved = (await tx.$executeRaw`DELETE FROM threadly_open_device WHERE token_hash = ${openHash}`) === 1;
+    }
+    return { counts: { guesses, streaks, stats, leaderboard, receipts }, deviceRemoved };
   });
 }

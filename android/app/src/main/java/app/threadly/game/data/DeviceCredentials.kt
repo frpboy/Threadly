@@ -38,6 +38,14 @@ class DeviceCredentials(context: Context) : BetaCredentials {
     override fun token(): String? = try { read().optString("token").takeIf { it.matches(Regex("[A-Za-z0-9_-]{43}")) } } catch (_: Exception) { null }
     fun sessionKey(): String = java.security.MessageDigest.getInstance("SHA-256").digest((token() ?: "").toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
     fun saveToken(token: String) { require(token.matches(Regex("[A-Za-z0-9_-]{43}"))); write(JSONObject().put("token", token)) }
+    /** Open enrollment also returns the server-issued player ID and expiry, kept for display and data-deletion requests. */
+    fun saveEnrollment(token: String, guestId: String, expiresAt: Long = 0) {
+        require(token.matches(Regex("[A-Za-z0-9_-]{43}")))
+        write(JSONObject().put("token", token).put("guestId", guestId).put("expiresAt", expiresAt))
+    }
+    override fun playerId(): String? = try { read().optString("guestId").takeIf { it.isNotBlank() } } catch (_: Exception) { null }
+    /** Full local wipe after a confirmed server-side deletion: credential, player ID, any pending guess. */
+    fun clear() { write(JSONObject()) }
     @Synchronized override fun requestId(puzzleId: String, guess: String): String {
         val state = read()
         if (state.has("pendingId")) {

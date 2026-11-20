@@ -1,4 +1,4 @@
-import { betaEnabled, nativePrincipal, credentialPresent } from "@/services/nativeBeta/access";
+import { betaEnabled, nativePrincipal, authorizationPresent } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextResponse } from "next/server";
 import { getDailyPuzzle, publicationDayReached } from "@/services/puzzleService";
@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   try {
     // Legacy isolated-beta deployments gate every request; open/store deployments only reject a presented-but-invalid device credential.
     const device = await nativePrincipal(request);
-    if (!device && (betaEnabled() || credentialPresent(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
+    if (!device && (betaEnabled() || authorizationPresent(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "private, no-store" } });
     const today = new Date();
     const puzzle = await getDailyPuzzle(today);
 

@@ -14,7 +14,7 @@ export function betaTransaction(guestId: string, requestId: string, puzzleId: st
     // Serialize all logical requests for this player, not just one request ID.
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`threadly:beta-request:${guestId}`}, 0))`;
     const prior = await tx.$queryRaw<Array<{ payload_hash: string; result: unknown }>>`
-      SELECT payload_hash, result FROM threadly_beta_request WHERE guest_id = ${guestId} AND request_id = ${requestId}::uuid`;
+      SELECT payload_hash, result FROM threadly_guess_receipt WHERE guest_id = ${guestId} AND request_id = ${requestId}::uuid`;
     if (prior.length) {
       if (prior[0].payload_hash !== payload) throw new RequestConflict('Request ID reused with different contents');
       return prior[0].result as T;
@@ -22,7 +22,7 @@ export function betaTransaction(guestId: string, requestId: string, puzzleId: st
     const result = await fn(prismaUnitOfWork(tx));
     const encoded = JSON.stringify(result);
     await tx.$executeRaw`
-      INSERT INTO threadly_beta_request (guest_id, request_id, payload_hash, result)
+      INSERT INTO threadly_guess_receipt (guest_id, request_id, payload_hash, result)
       VALUES (${guestId}, ${requestId}::uuid, ${payload}, ${encoded}::jsonb)`;
     return JSON.parse(encoded) as T;
   }, { timeout: 15000 });

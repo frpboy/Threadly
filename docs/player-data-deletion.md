@@ -10,13 +10,17 @@ operable.
 | Client | Identity | Where the player sees it | Proof for deletion |
 | --- | --- | --- | --- |
 | Web guest | 36-char UUID, generated in the browser, kept only in localStorage (`threadly_guest_id`) | Home page footer, "Your player ID" (copy button) | The id itself: random, never in URLs/logs, known only to that browser |
-| Native app | `dev-<48 hex>` issued at open enrollment | Stats screen, "Your player ID" | The live device credential (Bearer token); it revokes itself on deletion |
+| Native app | `dev-<48 hex>` issued at open enrollment | Top of the game screen, "Player ID" (copy button) | The device credential (Bearer token), even when expired or past its request cap; the server deletes the identity's rows and removes the credential row in one transaction |
 
 ## Self-serve routes (preferred)
 
 - Web: stats screen -> "Delete my data" -> sends `DELETE /api/player-data` with `{guest_id, confirm: true}`.
-- Native: stats screen -> "Delete my data" -> sends `DELETE /api/player-data` with the device credential;
-  the server deletes the identity's rows and revokes the credential.
+- Native: game screen -> "Delete my data" -> sends `DELETE /api/player-data` with the device credential;
+  the server deletes the identity's rows (including idempotency receipts) and removes the
+  device row in ONE transaction, serialized against in-flight gameplay by advisory locks, so a
+  failure leaves everything untouched and the request can simply be retried. An expired or
+  request-capped credential still works for deletion (never for gameplay). After confirmation
+  the app wipes its local state (credential, player ID, on-device stats, pending guess).
 
 ## Email requests (manual path)
 
@@ -28,12 +32,16 @@ operable.
 
 ```sql
 BEGIN;
-DELETE FROM guesses             WHERE guest_id = $1;
-DELETE FROM streaks             WHERE guest_id = $1;
-DELETE FROM stats               WHERE guest_id = $1;
-DELETE FROM leaderboard_entries WHERE guest_id = $1;
--- native devices only:
-UPDATE threadly_open_device SET revoked = true WHERE guest_id = $1;
+-- serialize against in-flight gameplay for this identity (same locks the app takes):
+SELECT pg_advisory_xact_lock(hashtextextended('threadly:beta-request:' || $1, 0));
+SELECT pg_advisory_xact_lock(hashtextextended('threadly:award:g:' || $1, 0));
+DELETE FROM guesses               WHERE guest_id = $1;
+DELETE FROM streaks               WHERE guest_id = $1;
+DELETE FROM stats                 WHERE guest_id = $1;
+DELETE FROM leaderboard_entries   WHERE guest_id = $1;
+DELETE FROM threadly_guess_receipt WHERE guest_id = $1;
+-- native devices only (self-deletion removes the row; `revoked` is for abuse action only):
+DELETE FROM threadly_open_device  WHERE guest_id = $1;
 COMMIT;
 ```
 
@@ -47,3 +55,16 @@ COMMIT;
   name is stored, so there is no lookup key. Always ask for the player ID.
 - Never delete by fuzzy match (time windows, approximate ids). One exact id, one transaction,
   recorded counts.
+
+## Retention
+
+- Self-deletion retains nothing for the identity: device row, gameplay rows and receipts all go
+  in the same transaction. The `revoked` flag on threadly_open_device exists only for
+  administrative abuse revocation.
+- Abandoned credentials (expired >30 days) are removed automatically on each new enrollment.
+  Their gameplay rows, if any, are unreachable without the credential; remove them with the
+  same transaction above when a player supplies the matching player ID, or leave them: they
+  hold guesses and scores keyed by an id no one can authenticate.
+- Orphaned gameplay rows for identities that never ask for deletion can be cleaned with:
+  `DELETE FROM guesses g WHERE g.guest_id LIKE 'dev-%' AND NOT EXISTS (SELECT 1 FROM threadly_open_device d WHERE d.guest_id = g.guest_id);`
+  (repeat per table; run only in a maintenance window).

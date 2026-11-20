@@ -11,6 +11,29 @@ CREATE TABLE IF NOT EXISTS threadly_open_device (
     revoked        BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS threadly_open_device_guest ON threadly_open_device (guest_id);
+CREATE INDEX IF NOT EXISTS threadly_open_device_expiry ON threadly_open_device (expires_at);
+
+-- Retention model:
+-- * Self-deletion (DELETE /api/player-data) hard-deletes the device row and every
+--   gameplay/receipt row for the identity in one transaction; nothing is retained.
+-- * The revoked flag exists only for administrative abuse revocation, not self-deletion.
+-- * createOpenDevice removes rows expired >30 days on each enrollment, so abandoned
+--   credentials cannot accumulate; their orphaned gameplay rows (if any) are
+--   unreachable without the credential and can be removed by the operator runbook
+--   (docs/player-data-deletion.md).
+
+-- Guess-idempotency receipts for credentialed play (both open and legacy-beta devices).
+-- Intentionally no FK: identities live in threadly_open_device OR threadly_beta_device;
+-- lifecycle cleanup happens in deleteIdentityData (same transaction as data delete),
+-- never via cascades. The legacy threadly_beta_request name is retired: its FK to
+-- threadly_beta_device(guest_id) would reject every 'dev-*' store player.
+CREATE TABLE IF NOT EXISTS threadly_guess_receipt (
+    guest_id     TEXT NOT NULL,
+    request_id   UUID NOT NULL,
+    payload_hash CHAR(64) NOT NULL,
+    result       JSONB NOT NULL,
+    PRIMARY KEY (guest_id, request_id)
+);
 
 -- Singleton global enrollment rate limiter (30/min), independent of spoofable IP headers.
 CREATE TABLE IF NOT EXISTS threadly_open_enrollment (

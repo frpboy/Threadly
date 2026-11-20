@@ -18,11 +18,13 @@ const fiveClues = () => Array.from({ length: 5 }, (_, i) => ({ clueOrder: i + 1,
 function apiErrorCapture(captured: unknown[][]) {
   return { captureHandledApiError: (...args: unknown[]) => { captured.push(args); return "captured-event"; } };
 }
-/** Beta gate off: any native-beta work is forbidden in these tests. */
+/** Beta gate off: routes still call nativePrincipal/authorizationPresent on every request;
+ *  with no credential presented they must return null/false. */
 const betaDisabled = {
   "@/services/nativeBeta/access": {
     betaEnabled: () => false,
-    nativePrincipal: async () => { throw new Error("native principal forbidden while beta disabled"); },
+    nativePrincipal: async () => null,
+    authorizationPresent: () => false,
   },
 };
 const betaGuessDisabled = {
