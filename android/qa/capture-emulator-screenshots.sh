@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Capture real installed-app screenshots on a booted emulator (CI lane).
+# Requires: adb in PATH, emulator booted, debug APK built.
+set -u
+OUT=${1:-shots}
+APK=${2:-android/app/build/outputs/apk/debug/app-debug.apk}
+PKG=com.frpboy.threadly
+mkdir -p "$OUT"
+
+adb install -r "$APK" || exit 1
+adb shell input keyevent KEYCODE_WAKEUP
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+adb exec-out screencap -p > "$OUT/01-home.png"
+
+# App drawer (swipe up from bottom of home screen)
+adb shell input swipe 540 1900 540 600 400
+sleep 2
+adb exec-out screencap -p > "$OUT/02-app-drawer.png"
+adb shell input keyevent KEYCODE_HOME
+sleep 1
+
+# Launch the app (first run lands on the how-to-play onboarding)
+adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 >/dev/null
+sleep 15
+adb exec-out screencap -p > "$OUT/03-app-onboarding.png"
+
+tap_on_text() {
+  local label="$1" coords
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null 2>&1
+  coords=$(python3 - "$label" <<'PYEOF'
+import re, sys
+label = sys.argv[1]
+xml = open('/tmp/ui.xml', encoding='utf-8', errors='ignore').read()
+pats = [
+    r'text="' + re.escape(label) + r'"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+    r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*text="' + re.escape(label) + r'"',
+]
+for p in pats:
+    m = re.search(p, xml)
+    if m:
+        x = (int(m.group(1)) + int(m.group(3))) // 2
+        y = (int(m.group(2)) + int(m.group(4))) // 2
+        print(x, y)
+        break
+PYEOF
+)
+  if [ -n "$coords" ]; then
+    echo "tap '$label' at $coords"
+    adb shell input tap $coords
+    sleep 4
+    return 0
+  fi
+  echo "WARN: '$label' not found on screen"
+  return 1
+}
+
+# How-to-play pages, then the enrollment screen (invitation gate)
+tap_on_text "Skip" || true
+adb exec-out screencap -p > "$OUT/04-after-skip.png"
+tap_on_text "Start beta" || true
+adb exec-out screencap -p > "$OUT/05-enrollment.png"
+
+# System app-info page: launcher-level proof of installed label/icon/version
+adb shell am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:"$PKG" >/dev/null
+sleep 4
+adb exec-out screencap -p > "$OUT/06-app-info.png"
+
+ls -la "$OUT"
