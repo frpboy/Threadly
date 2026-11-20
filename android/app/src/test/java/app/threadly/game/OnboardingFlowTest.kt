@@ -59,12 +59,13 @@ class OnboardingFlowTest {
         assertThrows(IllegalArgumentException::class.java) { OnboardingFlow(emptyList()) }
     }
 
-    @Test fun shippedContentCoversRulesScoringAndInvitation() {
+    @Test fun shippedContentCoversRulesScoringAndProfile() {
         assertTrue(ONBOARDING_VERSION >= 1)
         val text = ONBOARDING_STEPS.joinToString(" ") { it.title + " " + it.body }
         assertTrue(text.contains("connection"))
         assertTrue(text.contains("wrong"))
         assertTrue(text.contains("fewer clues"))
-        assertTrue(text.contains("invitation"))
+        // Open store-native play: a per-device player profile, no invitation gate.
+        assertTrue(text.contains("player profile"))
     }
 }
