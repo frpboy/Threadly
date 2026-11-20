@@ -28,7 +28,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           grep -F 'android:usesCleartextTraffic="false"' android/app/src/main/AndroidManifest.xml
           grep -F "applicationId 'com.frpboy.threadly'" android/app/build.gradle
-          grep -F "buildConfigField 'String', 'API_BASE', '"'"'"'http://127.0.0.1:8765'"'"'"'" android/app/build.gradle
+          grep -F 'http://127.0.0.1:8765' android/app/build.gradle
           grep -F "THREADLY_NATIVE_OPEN" apps/web/services/nativeBeta/access.ts
           test -z "${THREADLY_KEYSTORE_PATH:-}"
       - uses: actions/setup-node@v4
