@@ -30,6 +30,12 @@ export function prismaHistory(client: DbClient = db): AttemptStore["history"] {
 export function prismaUnitOfWork(tx: DbClient): GuessUnitOfWork {
   return {
     history: prismaHistory(tx),
+    async lockPlayer(playerKey) {
+      // Same key the award() lock and deleteIdentityData use: one ordering everywhere.
+      await tx.$executeRawUnsafe(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", `threadly:award:${playerKey}`
+      );
+    },
     async insertGuess(puzzleId, playerKey, rec) {
       const isUser = playerKey.startsWith("u:");
       const id = playerKey.slice(2);

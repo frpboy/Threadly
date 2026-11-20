@@ -15,6 +15,12 @@ export interface AwardArgs {
 export interface GuessUnitOfWork extends AttemptStore {
   /** Streak, stats and leaderboard writes. Must throw on any failure so the transaction rolls back. */
   award(args: AwardArgs): Promise<unknown>;
+  /**
+   * Player-scoped advisory lock. submitGuess takes it BEFORE any read or write so a
+   * gameplay transaction and a player-data deletion (which takes the same lock)
+   * can never interleave: same-browser concurrent guess + delete serialize fully.
+   */
+  lockPlayer(playerKey: string): Promise<unknown>;
 }
 
 export interface SubmitArgs {
@@ -35,6 +41,7 @@ export type RunInTransaction = <T>(fn: (uow: GuessUnitOfWork) => Promise<T>) => 
  */
 export async function submitGuess(runInTransaction: RunInTransaction, args: SubmitArgs) {
   return runInTransaction(async (uow) => {
+    await uow.lockPlayer(args.playerKey);
     const outcome: GuessOutcome = await processGuess(uow, args);
     if (outcome.status !== "scored") return { outcome, award: undefined as unknown };
     const finished = outcome.correct || outcome.cluesUsed >= MAX_CLUES;

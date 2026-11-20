@@ -23,6 +23,7 @@ function runner(db: PGlite, failAward?: "before" | "after") {
   return (<T,>(fn: (uow: GuessUnitOfWork) => Promise<T>) =>
     db.transaction(async (tx) => {
       const uow: GuessUnitOfWork = {
+        async lockPlayer() {},
         async history(puzzleId, playerKey) {
           const r = await tx.query<any>("SELECT clue_number, is_correct, guess_text FROM guesses WHERE puzzle_id=$1 AND player_key=$2 ORDER BY clue_number", [puzzleId, playerKey]);
           return r.rows.map((x) => ({ clueNumber: x.clue_number, isCorrect: x.is_correct, guessText: x.guess_text, scoreAwarded: 0 }));

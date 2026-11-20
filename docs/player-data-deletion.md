@@ -61,10 +61,12 @@ COMMIT;
 - Self-deletion retains nothing for the identity: device row, gameplay rows and receipts all go
   in the same transaction. The `revoked` flag on threadly_open_device exists only for
   administrative abuse revocation.
-- Abandoned credentials (expired >30 days) are removed automatically on each new enrollment.
-  Their gameplay rows, if any, are unreachable without the credential; remove them with the
-  same transaction above when a player supplies the matching player ID, or leave them: they
-  hold guesses and scores keyed by an id no one can authenticate.
-- Orphaned gameplay rows for identities that never ask for deletion can be cleaned with:
-  `DELETE FROM guesses g WHERE g.guest_id LIKE 'dev-%' AND NOT EXISTS (SELECT 1 FROM threadly_open_device d WHERE d.guest_id = g.guest_id);`
-  (repeat per table; run only in a maintenance window).
+- Automatic purge: each open enrollment runs a capped batch purge. A credential lives
+  90 days, then has a 30-day grace during which the expired credential can still
+  self-delete; after that the identity AND all its data (device row, guesses, streaks,
+  stats, leaderboard entries, receipts) are deleted automatically in one transaction.
+  No gameplay data strands and no operator cleanup is needed.
+- Concurrency: gameplay transactions take the player-scoped advisory lock
+  (`threadly:award:<playerKey>`) before any read/write, and deletions take the same
+  lock, so a same-browser concurrent guess + delete fully serialize - the outcome is
+  always one of the two serial orders, never an interleave.

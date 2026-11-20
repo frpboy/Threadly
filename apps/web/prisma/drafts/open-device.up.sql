@@ -17,10 +17,10 @@ CREATE INDEX IF NOT EXISTS threadly_open_device_expiry ON threadly_open_device (
 -- * Self-deletion (DELETE /api/player-data) hard-deletes the device row and every
 --   gameplay/receipt row for the identity in one transaction; nothing is retained.
 -- * The revoked flag exists only for administrative abuse revocation, not self-deletion.
--- * createOpenDevice removes rows expired >30 days on each enrollment, so abandoned
---   credentials cannot accumulate; their orphaned gameplay rows (if any) are
---   unreachable without the credential and can be removed by the operator runbook
---   (docs/player-data-deletion.md).
+-- * Automatic purge (purgeExpiredOpenDevices, run on each enrollment, capped batch):
+--   90-day credential + 30-day self-deletion grace, then the identity AND ALL its
+--   data (device row, guesses, streaks, stats, leaderboard entries, receipts) are
+--   deleted in one transaction. Nothing strands; no operator action required.
 
 -- Guess-idempotency receipts for credentialed play (both open and legacy-beta devices).
 -- Intentionally no FK: identities live in threadly_open_device OR threadly_beta_device;

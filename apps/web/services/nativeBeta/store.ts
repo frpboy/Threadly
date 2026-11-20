@@ -85,10 +85,7 @@ export const openDeviceStore = {
     return rows.length === 1;
   },
   async createOpenDevice(now = Date.now(), random = randomBytes) {
-    // Opportunistic cleanup: credentials expired for over 30 days are unreachable
-    // (clients re-enroll after expiry) and their gameplay data can no longer be
-    // authenticated, so the rows are removed and issuance cannot grow without bound.
-    await db.$executeRaw`DELETE FROM threadly_open_device WHERE expires_at < now() - interval '30 days'`;
+    await purgeExpiredOpenDevices();
     const { token, guestId, expiresAt } = mintOpenCredential(random, now, OPEN_TTL_MS);
     await db.$executeRaw`
       INSERT INTO threadly_open_device (token_hash, guest_id, expires_at)
@@ -96,6 +93,33 @@ export const openDeviceStore = {
     return { token, guestId, expiresAt };
   },
 };
+
+/**
+ * Automatic full lifecycle purge: a credential lives 90 days, then a 30-day grace
+ * during which the expired credential can still self-delete, then the identity AND
+ * ALL its data (gameplay rows, receipts, device row) are purged together in one
+ * transaction. Runs opportunistically on enrollment (capped batch per call; the
+ * 30/min enrollment bound drains any backlog). No identity's data strands forever
+ * and no operator action is required. No locks needed: an expired credential has
+ * no authorized in-flight gameplay; a racing grace-period self-delete just deletes
+ * the same rows.
+ */
+export async function purgeExpiredOpenDevices(limit = 50) {
+  return db.$transaction(async tx => {
+    const doomed = await tx.$queryRaw<Array<{ guest_id: string }>>`
+      DELETE FROM threadly_open_device WHERE token_hash IN (
+        SELECT token_hash FROM threadly_open_device WHERE expires_at < now() - interval '30 days' LIMIT ${limit}
+      ) RETURNING guest_id`;
+    if (!doomed.length) return { devices: 0, guesses: 0, streaks: 0, stats: 0, leaderboard: 0, receipts: 0 };
+    const ids = doomed.map(d => d.guest_id);
+    const guesses = await tx.$executeRaw`DELETE FROM guesses WHERE guest_id = ANY(${ids})`;
+    const streaks = await tx.$executeRaw`DELETE FROM streaks WHERE guest_id = ANY(${ids})`;
+    const stats = await tx.$executeRaw`DELETE FROM stats WHERE guest_id = ANY(${ids})`;
+    const leaderboard = await tx.$executeRaw`DELETE FROM leaderboard_entries WHERE guest_id = ANY(${ids})`;
+    const receipts = await tx.$executeRaw`DELETE FROM threadly_guess_receipt WHERE guest_id = ANY(${ids})`;
+    return { devices: doomed.length, guesses, streaks, stats, leaderboard, receipts };
+  });
+}
 
 /**
  * Delete every server-side row for a guest identity in ONE transaction.
