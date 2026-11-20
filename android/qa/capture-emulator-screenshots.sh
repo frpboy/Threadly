@@ -56,11 +56,16 @@ PYEOF
   return 1
 }
 
-# How-to-play pages, then the enrollment screen (invitation gate)
+# Page through the how-to-play onboarding for distinct in-app screens
+for i in 1 2 3; do
+  tap_on_text "Next" || true
+  adb exec-out screencap -p > "$OUT/04-onboarding-page$((i+1)).png"
+done
+# Enrollment screen (invitation gate)
 tap_on_text "Skip" || true
-adb exec-out screencap -p > "$OUT/04-after-skip.png"
+adb exec-out screencap -p > "$OUT/07-enrollment.png"
 tap_on_text "Start beta" || true
-adb exec-out screencap -p > "$OUT/05-enrollment.png"
+adb exec-out screencap -p > "$OUT/08-start-beta.png"
 
 # System app-info page: launcher-level proof of installed label/icon/version
 adb shell am start -a android.settings.APPLICATION_DETAILS_SETTINGS -d package:"$PKG" >/dev/null
