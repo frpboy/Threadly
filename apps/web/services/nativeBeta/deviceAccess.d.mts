@@ -3,3 +3,7 @@ export interface Store { findDevice(hash: string): Promise<{guestId: string; tar
 export function allowedConfig(config: Config, now: number): boolean;
 export function authenticate(header: string | null, options: { store: Store; config: Config; now?: number }): Promise<{ guestId: string; expiresAt: number } | null>;
 export function enroll(code: unknown, options: { store: Store; config: Config; now?: number }): Promise<{ token: string; expiresAt: number } | null>;
+export function digest(value: string): string;
+export function bearer(header: string | null): string | null;
+import type { randomBytes } from 'node:crypto';
+export function mintOpenCredential(random?: typeof randomBytes, now?: number, ttlMs?: number): { token: string; guestId: string; expiresAt: number };

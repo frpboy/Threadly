@@ -428,6 +428,43 @@ export default function Home() {
         </div>
       )}
 
+      {/* Player identity + data deletion (Play data-deletion requirement) */}
+      {guestId && (
+        <div className="w-full max-w-md text-center text-xs text-foreground/30 mt-6">
+          <p>
+            Your player ID: <code className="select-all break-all">{guestId}</code>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(guestId)}
+              className="ml-2 underline"
+            >
+              Copy
+            </button>
+          </p>
+          <button
+            type="button"
+            className="mt-1 underline text-[#FF5C5C]/70"
+            onClick={async () => {
+              if (!window.confirm("Delete all your Threadly progress and stats from the server? This cannot be undone.")) return;
+              try {
+                const res = await fetch("/api/player-data", {
+                  method: "DELETE",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ guest_id: guestId, confirm: true }),
+                });
+                if (!res.ok) throw new Error();
+                localStorage.removeItem("threadly_guest_id");
+                window.location.reload();
+              } catch {
+                window.alert("Deletion failed. Please try again or email frpboy12@gmail.com.");
+              }
+            }}
+          >
+            Delete my data
+          </button>
+        </div>
+      )}
+
       {/* Footer */}
       <footer className="w-full max-w-md text-center py-4 border-t border-border-subtle text-xs text-foreground/20 mt-6">
         Threadly — Think Like The Internet • Daily Puzzle Game

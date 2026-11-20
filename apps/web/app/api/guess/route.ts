@@ -1,6 +1,6 @@
 import { boundedJson } from "@/services/nativeBeta/body";
 import { betaTransaction, validRequestId, RequestConflict } from "@/services/nativeBeta/guessRequest";
-import { betaEnabled, nativePrincipal } from "@/services/nativeBeta/access";
+import { betaEnabled, nativePrincipal, credentialPresent } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -24,8 +24,9 @@ function privateJson(body: unknown, init: ResponseInit = {}) {
 export async function POST(req: NextRequest) {
   try {
     const beta = betaEnabled();
-    const device = beta ? await nativePrincipal(req) : null;
-    if (beta && !device) return privateJson({ error: "Unauthorized" }, { status: 401 });
+    // A presented-but-invalid device credential is always rejected; an absent one only in the legacy isolated-beta gate.
+    const device = await nativePrincipal(req);
+    if (!device && (beta || credentialPresent(req))) return privateJson({ error: "Unauthorized" }, { status: 401 });
     // clues_revealed from the client is ignored: the server derives it from its own guess log.
     let body: unknown;
     try {

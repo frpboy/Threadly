@@ -44,3 +44,10 @@ export function sameMarker(actual, expected) {
   const a = Buffer.from(actual), b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+/** Pure issuance for one open store-native device credential (testable without a DB). */
+export function mintOpenCredential(random = randomBytes, now = Date.now(), ttlMs = 90 * 86400000) {
+  const token = random(32).toString('base64url');
+  const guestId = 'dev-' + random(24).toString('hex');
+  return { token, guestId, expiresAt: now + ttlMs };
+}

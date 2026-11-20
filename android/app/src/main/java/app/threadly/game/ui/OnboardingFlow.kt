@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /** First-run content version. Bump when the steps change materially so returning testers see the new flow once. */
-const val ONBOARDING_VERSION = 1
+const val ONBOARDING_VERSION = 2
 
 data class OnboardingStep(val title: String, val body: String)
 
@@ -23,8 +23,8 @@ val ONBOARDING_STEPS: List<OnboardingStep> = listOf(
         "Solve using as few clues as you can. The fewer clues you need, the more points you earn.",
     ),
     OnboardingStep(
-        "Your beta invitation",
-        "This native beta needs a one-time invitation. It links this device only and expires when the test period ends.",
+        "Your private player profile",
+        "This device gets its own player profile. No email, no account, nothing to remember.",
     ),
 )
 

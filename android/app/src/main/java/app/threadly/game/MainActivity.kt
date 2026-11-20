@@ -57,12 +57,27 @@ class MainActivity : ComponentActivity() {
                 GameScreen(vm, onReenroll = { enrolled = false })
             } else {
                 var code by remember { mutableStateOf("") }
-                var busy by remember { mutableStateOf(false) }
+                var busy by remember { mutableStateOf(true) }
+                var openTried by remember { mutableStateOf(false) }
                 var error by remember { mutableStateOf("") }
                 val scope = rememberCoroutineScope()
+                // Store-native open play: try a silent self-enrollment first (one isolated device
+                // credential, no invitation). Only when the server has open enrollment disabled
+                // (e.g. the legacy synthetic-beta deployment) does the invitation gate appear.
+                LaunchedEffect(Unit) {
+                    try {
+                        val token = HttpGameApi(BuildConfig.API_BASE).enroll("")
+                        if (token != null) { device.saveToken(token); enrolled = true }
+                    } catch (_: Exception) { /* no open enrollment on this backend */ }
+                    busy = false; openTried = true
+                }
                 MaterialTheme(colorScheme = darkColorScheme()) {
                     Surface(Modifier.fillMaxSize()) {
                         Column(Modifier.safeDrawingPadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
+                            if (!openTried) {
+                                Text("Threadly", style = MaterialTheme.typography.headlineMedium)
+                                Text("Setting up this device's private player profile...")
+                            } else {
                             Text("Threadly native beta", style = MaterialTheme.typography.headlineMedium)
                             Text("Synthetic test puzzles. Enter your one-time invitation. This beta expires after its test period.")
                             OutlinedTextField(value = code, onValueChange = { if (it.length <= 64) code = it }, label = { Text("Invitation") }, enabled = !busy, singleLine = true)
@@ -78,6 +93,7 @@ class MainActivity : ComponentActivity() {
                                     finally { busy = false }
                                 }
                             }) { Text(if (busy) "Enrolling..." else "Start beta") }
+                            }
                         }
                     }
                 }
