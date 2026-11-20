@@ -4,7 +4,13 @@
     "deploymentEnabled": {
       "fix/android-progress-api-20261107": false,
       "native/secure-beta-20261110": false,
-      "sentry-privacy-containment": false
+      "sentry-privacy-containment": false,
+      "fix/store-native-play": false,
+      "fix/store-native-play-wip": false,
+      "fix/store-native-play-r2": false,
+      "fix/store-native-play-r3": false,
+      "ci/android-open-play-qa": false,
+      "ci/android-emulator-screenshots": false
     }
   }
 }

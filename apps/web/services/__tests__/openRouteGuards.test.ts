@@ -154,6 +154,64 @@ test("guess: a server-issued dev-* id is never claimable through the guest path"
   assert.equal(f.seen.playerKey, null);
 });
 
+/** Guess route wired for the post-deletion race: the runner (betaTransaction) may throw CredentialRevoked. */
+function raceGuessMocks(deleted: boolean) {
+  const seen = { opts: undefined as unknown, uowRan: false, authCalls: 0 };
+  class CredentialRevoked extends Error {}
+  const post = route("guess", {
+    ...accessMock(),
+    "@/services/nativeBeta/guessRequest": {
+      betaTransaction: (_g: string, _r: string, _p: string, _guess: string, opts: unknown) => {
+        seen.opts = opts;
+        return async (fn: (uow: unknown) => Promise<unknown>) => {
+          if (deleted) throw new CredentialRevoked("identity deleted before this transaction took the lock");
+          seen.uowRan = true;
+          return fn({});
+        };
+      },
+      validRequestId: (v: unknown) => typeof v === "string" && /^[0-9a-f-]{36}$/i.test(v),
+      RequestConflict: class RequestConflict extends Error {},
+      CredentialRevoked,
+    },
+    "@/services/apiErrorCapture": { captureHandledApiError: () => {} },
+    "@/services/puzzleService": { publicationDayReached: () => true },
+    "@/lib/db": { db: { puzzle: { findUnique: async () => publishedPuzzle } } },
+    "@/auth": { auth: async () => { seen.authCalls++; return null; } },
+    "@/services/answerService": { checkAnswer: () => ({ isCorrect: true, similarity: 1 }) },
+    "@/services/scoringService": { calculateScore: () => 100 },
+    "@/services/difficultyService": { recalculatePuzzleDifficulty: async () => {} },
+    "@/services/attemptService": { MAX_CLUES: 5 },
+    "@/services/guessTransaction": {
+      submitGuess: async (tx: (fn: (uow: unknown) => Promise<unknown>) => Promise<unknown>, _args: unknown) =>
+        tx(async () => ({ outcome: { status: "scored", correct: true, cluesUsed: 1, scoreAwarded: 100 }, award: {} })),
+    },
+    "@/services/prismaAttemptStore": { runInPrismaTransaction: () => { throw new Error("not expected"); } },
+    "@/services/requestValidation": validation,
+  }).POST;
+  const send = () => post(new Request("http://localhost/api/guess", {
+    method: "POST",
+    body: JSON.stringify({ puzzle_id: "p", guess: "answer", guest_id: "x", request_id: "f47ac10b-58cc-4372-a567-0e02b2c3d479" }),
+    headers: { authorization: "Bearer VALID-TOKEN" },
+  }));
+  return { seen, send };
+}
+
+test("guess: an open device asks for in-transaction re-verification (race gate wiring)", async () => {
+  const f = raceGuessMocks(false);
+  const r = await f.send();
+  assert.equal(r.status, 200);
+  assert.deepEqual(f.seen.opts, { openDevice: true });
+  assert.equal(f.seen.uowRan, true);
+});
+
+test("guess: identity deleted after authentication -> the locked transaction aborts 401, no writes run", async () => {
+  const f = raceGuessMocks(true);
+  const r = await f.send();
+  assert.equal(r.status, 401);
+  assert.equal(f.seen.uowRan, false);
+  assert.equal((await r.json() as { error: string }).error, "Unauthorized");
+});
+
 function deleteMocks(over: Record<string, unknown> = {}) {
   const seen = { deleted: [] as Array<{ guestId: string; header: string | null | undefined }> };
   const del = route("player-data", {

@@ -1,5 +1,5 @@
 import { boundedJson } from "@/services/nativeBeta/body";
-import { betaTransaction, validRequestId, RequestConflict } from "@/services/nativeBeta/guessRequest";
+import { betaTransaction, validRequestId, RequestConflict, CredentialRevoked } from "@/services/nativeBeta/guessRequest";
 import { betaEnabled, nativePrincipal, authorizationPresent } from "@/services/nativeBeta/access";
 import { validPuzzleContent } from "@/services/puzzleContract";
 import { NextRequest, NextResponse } from "next/server";
@@ -73,7 +73,13 @@ export async function POST(req: NextRequest) {
 
     const { isCorrect, similarity } = checkAnswer(guess.trim(), puzzle.answer);
 
-    const { outcome, award } = await submitGuess(device ? betaTransaction(device.guestId, request_id as string, puzzle.id, guess.trim()) : runInPrismaTransaction, {
+    // An open device is re-verified INSIDE the locked guess transaction: a
+    // concurrent self-deletion that committed first aborts the guess (401)
+    // instead of letting it write orphaned rows no purge can reach.
+    const runner = device
+      ? betaTransaction(device.guestId, request_id as string, puzzle.id, guess.trim(), device.open ? { openDevice: true } : undefined)
+      : runInPrismaTransaction;
+    const { outcome, award } = await submitGuess(runner, {
       puzzleId: puzzle.id,
       playerKey,
       guessText: guess.trim(),
@@ -121,6 +127,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     if (error instanceof RequestConflict) return privateJson({ error: "Request ID conflict" }, { status: 409 });
+    if (error instanceof CredentialRevoked) return privateJson({ error: "Unauthorized" }, { status: 401 });
     console.error("Failed to process guess");
     captureHandledApiError("guess", error);
     return privateJson(
