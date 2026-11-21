@@ -4,7 +4,7 @@ import shutil
 import xml.etree.ElementTree as ET
 
 CAP = 25 * 1024 * 1024
-NAMES = ("loopback-resume.png", "loopback-solved.png", "loopback-exhausted.png", "crash.txt", "package-uid.txt")
+NAMES = ("loopback-resume.png", "loopback-solved.png", "loopback-exhausted.png", "open-play-game.png", "open-delete-confirm.png", "open-profile-expired.png", "open-full-activity.png", "crash.txt", "package-uid.txt")
 
 def stage(root, destination):
     root, destination = Path(root), Path(destination)
