@@ -8,7 +8,8 @@ APK=${2:-android/app/build/outputs/apk/qa/app-qa.apk}
 PKG=com.frpboy.threadly.qa
 mkdir -p "$OUT"
 
-adb() { timeout --kill-after=5s 30s command adb "$@"; }
+ADB_BIN="$(command -v adb)"
+adb() { timeout --kill-after=5s 30s "$ADB_BIN" "$@"; }
 
 adb install -r "$APK" || exit 1
 
@@ -70,6 +71,7 @@ enter_guess() {
   dump_ui
   coords=$(python3 - <<'PYEOF'
 import re
+import sys
 try:
     xml = open('/tmp/ui.xml', encoding='utf-8', errors='ignore').read()
 except OSError:
