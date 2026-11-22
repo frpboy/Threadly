@@ -120,10 +120,26 @@ enter_guess "lantern"
 sleep 4
 shot 07-game-two-wrong
 
+# Scroll evidence: the column is scrollable; a swipe must reveal the
+# feedback line that sits below the fold at scroll position 0.
+adb shell input swipe 540 1500 540 700
+sleep 2
+shot 07b-scrolled-feedback
+adb shell input swipe 540 700 540 1500
+sleep 2
+
 # Correct answer: solved state with points and streak.
 enter_guess "compass"
 sleep 5
 shot 08-solved
+
+# Scroll evidence: solved screen scrolled down must fully reveal the
+# stats section whose heading peeks at the fold in 08.
+adb shell input swipe 540 1500 540 600
+sleep 2
+shot 08b-scrolled-stats
+adb shell input swipe 540 600 540 1500
+sleep 2
 
 # Deletion dialog (trust surface, matches the published privacy policy), then Cancel.
 tap_on_text "Delete my data" || true
