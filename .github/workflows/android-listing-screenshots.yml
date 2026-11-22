@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: threadly-listing-screenshots-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   listing-shots:
@@ -95,7 +95,7 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          adb shell wm size 1080x2400 || true
+          adb shell wm size 1080x2160 || true
           adb shell wm density 420 || true
           adb shell wm size | tr -d '\r'
 
@@ -108,33 +108,26 @@ jobs:
           timeout --kill-after=5s 20s adb reverse --list | grep -E ' tcp:8765 tcp:3189$'
           timeout --kill-after=15s 540s bash android/qa/capture-listing-screenshots.sh shots android/app/build/outputs/apk/qa/app-qa.apk
 
-      - name: Crop captures to Play's 2:1 aspect limit
+      - name: Verify capture dimensions meet Play limits
         timeout-minutes: 2
         run: |
           set -euo pipefail
-          mkdir -p shots-cropped
+          identify shots/*.png
           for f in shots/*.png; do
-            b=$(basename "$f")
-            dims=$(identify -format '%w %h' "$f")
-            read w h <<< "$dims"
-            max_h=$((2 * w))
-            if [ "$h" -gt "$max_h" ]; then
-              off=$(( (h - max_h) / 2 ))
-              convert "$f" -crop "${w}x${max_h}+0+${off}" "shots-cropped/$b"
-            else
-              cp "$f" "shots-cropped/$b"
+            read w h <<< "$(identify -format '%w %h' "$f")"
+            if [ "$h" -gt "$((2 * w))" ] || [ "$w" -lt 320 ] || [ "$h" -lt 320 ]; then
+              echo "non-compliant capture: $f ${w}x${h}" >&2
+              exit 1
             fi
           done
-          identify shots-cropped/*.png
+          echo "all captures within Play 320-3840px and 2:1 limits, no content cropped"
 
       - name: Upload screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: listing-screenshots
-          path: |
-            shots/
-            shots-cropped/
+          path: shots/
           retention-days: 14
 
       - name: Stop server, unreverse port, remove disposable DB
