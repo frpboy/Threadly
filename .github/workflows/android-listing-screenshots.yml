@@ -112,15 +112,20 @@ jobs:
         timeout-minutes: 2
         run: |
           set -euo pipefail
-          identify shots/*.png
-          for f in shots/*.png; do
-            read w h <<< "$(identify -format '%w %h' "$f")"
-            if [ "$h" -gt "$((2 * w))" ] || [ "$w" -lt 320 ] || [ "$h" -lt 320 ]; then
-              echo "non-compliant capture: $f ${w}x${h}" >&2
-              exit 1
-            fi
-          done
-          echo "all captures within Play 320-3840px and 2:1 limits, no content cropped"
+          python3 - <<'PYEOF'
+          import glob, struct, sys
+          bad = []
+          for f in sorted(glob.glob('shots/*.png')):
+              with open(f, 'rb') as fh:
+                  head = fh.read(26)
+              w, h = struct.unpack('>II', head[16:24])
+              print(f, f'{w}x{h}')
+              if h > 2 * w or w < 320 or h < 320 or w > 3840 or h > 3840:
+                  bad.append(f'{f} {w}x{h}')
+          if bad:
+              sys.exit('non-compliant captures: ' + ', '.join(bad))
+          print('all captures within Play 320-3840px and 2:1 limits, no content cropped')
+          PYEOF
 
       - name: Upload screenshots
         if: always()
