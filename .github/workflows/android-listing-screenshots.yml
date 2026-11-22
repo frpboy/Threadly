@@ -1,0 +1,147 @@
+name: Android listing screenshots (isolated)
+
+# Listing-grade screenshots + runtime play-through on the runner-local
+# disposable PostgreSQL and actual Next production server build.
+# Zero production mutation: no shared DB, no deployed URL, no secrets.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/listing-screenshots-v1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: threadly-listing-screenshots-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  listing-shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NODE_OPTIONS: ''
+      NODE_PATH: ''
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Record exact source and run QA gate unit tests
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD HEAD^{tree}
+          python3 -m unittest discover -s android/qa -p 'test_*.py' -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Prepare disposable DB, seed realistic content, build actual Next server
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          timeout --kill-after=5s 160s python3 android/qa/local_postgres.py start "$RUNNER_TEMP/threadly-local-db.json"
+          timeout --kill-after=10s 180s npm ci --workspace apps/web
+          timeout --kill-after=10s 90s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db push --schema apps/web/prisma/schema.prisma --skip-generate
+          timeout --kill-after=10s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/drafts/guess_player_key.up.sql
+          timeout --kill-after=10s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" npx prisma db execute --schema apps/web/prisma/schema.prisma --file apps/web/prisma/drafts/open-device.up.sql
+          timeout --kill-after=10s 180s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" bash -c 'cd apps/web && node scripts/build-verified.mjs'
+          timeout --kill-after=5s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/real_db_gate.cjs seed
+          timeout --kill-after=5s 60s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" node android/qa/seed-listing-content.mjs
+
+      - name: Start actual Next server with open store-native enrollment
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          export THREADLY_NATIVE_OPEN=device-credentials
+          timeout --kill-after=5s 90s python3 android/qa/local_postgres.py exec "$RUNNER_TEMP/threadly-local-db.json" python3 android/qa/real_server_gate.py start "$RUNNER_TEMP/threadly-real-server.json"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+          cache-disabled: true
+
+      - name: Build QA app against the loopback base
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
+          timeout --kill-after=10s 700s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -PthreadlyBetaApiBase=http://127.0.0.1:8765 :app:assembleQa --no-daemon
+
+      - name: Boot API 36 emulator
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_21_X64"
+          export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/threadly-android" ANDROID_EMULATOR_HOME="$RUNNER_TEMP/threadly-android" ANDROID_AVD_HOME="$RUNNER_TEMP/threadly-android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          test -e /dev/kvm; sudo chmod a+rw /dev/kvm
+          timeout --kill-after=10s 300s sdkmanager 'emulator' 'system-images;android-36;default;x86_64'
+          echo no | timeout --kill-after=10s 60s avdmanager create avd -n shots -k 'system-images;android-36;default;x86_64' --path "$ANDROID_AVD_HOME/shots.avd" --force
+          emulator -avd shots -port 5554 -no-window -no-audio -no-snapshot -gpu swiftshader_indirect -no-boot-anim > "$RUNNER_TEMP/emu.log" 2>&1 &
+          export ANDROID_SERIAL=emulator-5554
+          adb() { timeout --kill-after=5s 20s adb "$@"; }
+          timeout --kill-after=5s 180s adb -s "$ANDROID_SERIAL" wait-for-device
+          deadline=$((SECONDS + 300))
+          while (( SECONDS < deadline )); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then ready=1; break; fi
+            sleep 2
+          done
+          test "${ready:-0}" = 1
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell wm size 1080x2400 || true
+          adb shell wm density 420 || true
+          adb shell wm size | tr -d '\r'
+
+      - name: Reverse loopback port and capture the play-through
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$PATH" ANDROID_SERIAL=emulator-5554
+          timeout --kill-after=5s 20s adb reverse tcp:8765 tcp:3189
+          timeout --kill-after=5s 20s adb reverse --list | grep -E ' tcp:8765 tcp:3189$'
+          timeout --kill-after=15s 540s bash android/qa/capture-listing-screenshots.sh shots android/app/build/outputs/apk/qa/app-qa.apk
+
+      - name: Crop captures to Play's 2:1 aspect limit
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          mkdir -p shots-cropped
+          for f in shots/*.png; do
+            b=$(basename "$f")
+            dims=$(identify -format '%w %h' "$f")
+            read w h <<< "$dims"
+            max_h=$((2 * w))
+            if [ "$h" -gt "$max_h" ]; then
+              off=$(( (h - max_h) / 2 ))
+              convert "$f" -crop "${w}x${max_h}+0+${off}" "shots-cropped/$b"
+            else
+              cp "$f" "shots-cropped/$b"
+            fi
+          done
+          identify shots-cropped/*.png
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: listing-screenshots
+          path: |
+            shots/
+            shots-cropped/
+          retention-days: 14
+
+      - name: Stop server, unreverse port, remove disposable DB
+        if: always()
+        timeout-minutes: 2
+        run: |
+          export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          timeout --kill-after=5s 10s adb -s emulator-5554 reverse --remove tcp:8765 || true
+          timeout --kill-after=5s 15s python3 android/qa/real_server_gate.py stop "$RUNNER_TEMP/threadly-real-server.json" || true
+          timeout --kill-after=5s 40s python3 android/qa/local_postgres.py stop "$RUNNER_TEMP/threadly-local-db.json" || true
