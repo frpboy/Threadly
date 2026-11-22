@@ -9,6 +9,9 @@ interface Clue {
   text: string;
 }
 
+/**
+ * Render a past puzzle and its independent play state without altering the daily puzzle.
+ */
 export default function PlayArchiveItem() {
   const { id } = useParams();
   const [puzzleId, setPuzzleId] = useState("");
@@ -73,6 +76,7 @@ export default function PlayArchiveItem() {
     }
   }, [id]);
 
+  /** Toggle the archive detail theme and persist the preference. */
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
@@ -80,6 +84,7 @@ export default function PlayArchiveItem() {
     localStorage.setItem("threadly_theme", newTheme);
   };
 
+  /** Submit a guess for this archived puzzle and advance its clue sequence. */
   const handleGuessSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guessText.trim() || isGameOver || !puzzleId) return;
@@ -144,6 +149,7 @@ export default function PlayArchiveItem() {
     }
   };
 
+  /** Copy the archived puzzle result summary to the clipboard. */
   const handleShare = () => {
     const grid = Array.from({ length: 5 }, (_, i) => 
       i < cluesRevealed ? (isCorrect && i === cluesRevealed - 1 ? "🟩" : "⬛") : "⬜"
@@ -156,6 +162,7 @@ export default function PlayArchiveItem() {
     setTimeout(() => setShowShareNotification(false), 2000);
   };
 
+  /** Reset the current archived puzzle playthrough to its first clue. */
   const resetGame = () => {
     setCluesRevealed(1);
     if (systemClues.length > 0) {
@@ -173,7 +180,11 @@ export default function PlayArchiveItem() {
     <div className="flex flex-col min-h-screen items-center justify-between p-4 bg-background text-foreground transition-colors duration-300">
       {/* Header */}
       <header className="flex w-full max-w-md items-center justify-between py-4 border-b border-border-subtle mb-6">
-        <Link href="/archive" className="flex items-center gap-3">
+        <Link
+          href="/archive"
+          aria-label="Back to Archive"
+          className="flex items-center gap-3 rounded-xl p-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black transition-all"
+        >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF4500" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="filter drop-shadow-[0_0_6px_rgba(255,69,0,0.6)]">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -183,7 +194,8 @@ export default function PlayArchiveItem() {
         <div className="flex items-center gap-2">
           <button 
             onClick={toggleTheme}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             title="Toggle Theme"
           >
             {theme === "dark" ? "☀️" : "🌙"}
@@ -191,7 +203,9 @@ export default function PlayArchiveItem() {
 
           <button 
             onClick={() => setShowHowTo(!showHowTo)}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer"
+            aria-label="How to Play instructions"
+            aria-expanded={showHowTo}
+            className="w-9 h-9 flex items-center justify-center rounded-xl bg-background shadow-neumorphic-button active:shadow-neumorphic-button-pressed border border-border-subtle text-sm font-bold text-foreground/60 hover:text-foreground transition-all cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             title="How to Play"
           >
             ?
