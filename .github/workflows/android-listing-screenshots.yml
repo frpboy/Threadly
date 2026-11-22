@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           export JAVA_HOME="$JAVA_HOME_21_X64" PATH="$JAVA_HOME_21_X64/bin:$PATH"
-          timeout --kill-after=10s 700s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa -PthreadlyBetaApiBase=http://127.0.0.1:8765 :app:assembleQa --no-daemon
+          timeout --kill-after=10s 700s gradle --max-workers=2 -Pkotlin.compiler.execution.strategy=in-process -p android -PthreadlyTestBuildType=qa :app:assembleQa --no-daemon
 
       - name: Boot API 36 emulator
         timeout-minutes: 12
